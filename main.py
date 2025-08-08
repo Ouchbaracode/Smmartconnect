@@ -1,6 +1,7 @@
 import flet as ft
-from datetime import datetime 
+from datetime import datetime , timedelta
 import time 
+from typing import Dict
 # Updated imports to use the new database
 from db import (
     login as db_login, 
@@ -11,10 +12,15 @@ from db import (
     get_all_tools,
     create_mission,
     get_recent_activities,
-    get_all_missions,
+    get_employee_by_id,
+    update_employee,
     update_mission_status,
     create_tool,
     create_vehicle,
+    get_all_missions_with_details,
+    get_mission_stats,
+    get_mission_by_id_enhanced as get_mission_by_id,  
+    add_mission_log,
     db,  # Import the database manager instance
 )
 
@@ -34,7 +40,13 @@ def dashboard_router(page: ft.Page):
     GOLD = "#FFD700"
     WHITE = "#FFFFFF"
     BLACK = "#0F0F0F"
-    
+    BLACK = "#0F0F0F"
+    ORANGE = "#FFA500"
+    GREEN = "#4CAF50"
+    RED = "#F44336"
+    GRAY = "#9E9E9E"
+    LIGHT_GRAY = "#F5F5F5"
+    BLUE = "#2196F3"
     # Global variables for data caching
     dashboard_data = {}
     employees_data = []
@@ -156,9 +168,9 @@ def dashboard_router(page: ft.Page):
             content=ft.Row([
                 ft.Column([
                     ft.Text("SmartConnect Manager", size=23, weight=ft.FontWeight.BOLD, color=GOLD),
-                    ft.Text(f"Connecté en tant que: {user_role}", size=14, color="#64748b"),
-                    ft.Text(f"Utilisateur: {user_name}", size=12, color="#94a3b8"),
-                    ft.Text(f"Dernière mise à jour: {current_time}", size=12, color="#94a3b8")
+                    ft.Text(f"Connected as: {user_role}", size=14, color="#64748b"),
+                    ft.Text(f"User: {user_name}", size=12, color="#94a3b8"),
+                    ft.Text(f"Last update: {current_time}", size=12, color="#94a3b8")
                 ], spacing=5),
             ]),
             padding=20,
@@ -179,13 +191,13 @@ def dashboard_router(page: ft.Page):
                 ft.Text(f"Total: {total}", size=12, color="#64748b"),
                 ft.Row([
                     ft.Container(
-                        content=ft.Text(f"Actifs: {active}", size=9, color=WHITE),
+                        content=ft.Text(f"Active: {active}", size=9, color=WHITE),
                         padding=5,
                         bgcolor="#10b981",
                         border_radius=5
                     ),
                     ft.Container(
-                        content=ft.Text(f"Inactifs: {inactive}", size=9, color=WHITE),
+                        content=ft.Text(f"Inactive: {inactive}", size=9, color=WHITE),
                         padding=5,
                         bgcolor="#ef4444",
                         border_radius=5
@@ -205,15 +217,15 @@ def dashboard_router(page: ft.Page):
         return ft.Container(
             content=ft.Row([
                 ft.Column([
-                    create_stat_card("Employés", dashboard_data["employees"]["total"], 
+                    create_stat_card("Employees", dashboard_data["employees"]["total"], 
                                    dashboard_data["employees"]["active"], dashboard_data["employees"]["on_leave"], "#3b82f6"),
-                    create_stat_card("Projets", dashboard_data["projects"]["total"], 
+                    create_stat_card("Projects", dashboard_data["projects"]["total"], 
                                    dashboard_data["projects"]["active"], dashboard_data["projects"]["completed"], "#10b981")
                 ]),
                 ft.Column([
-                    create_stat_card("Véhicules", dashboard_data["vehicles"]["total"], 
+                    create_stat_card("Vehicles", dashboard_data["vehicles"]["total"], 
                                    dashboard_data["vehicles"]["available"], dashboard_data["vehicles"]["in_use"], "#f59e0b"),
-                    create_stat_card("Équipements", dashboard_data["equipment"]["total"], 
+                    create_stat_card("Equipment", dashboard_data["equipment"]["total"], 
                                    dashboard_data["equipment"]["operational"], dashboard_data["equipment"]["maintenance"], "#8b5cf6")
                 ])
             ]),
@@ -223,15 +235,15 @@ def dashboard_router(page: ft.Page):
     def create_quick_actions(handle_action):
         """Create quick actions section"""
         actions = [
-            {"title": "Ajouter Employé", "icon": ft.Icons.PERSON_ADD, "color": "#3b82f6"},
-            {"title": "Nouveau Projet", "icon": ft.Icons.ADD_TASK, "color": "#10b981"},
+            {"title": "Add Employé", "icon": ft.Icons.PERSON_ADD, "color": "#3b82f6"},
+            {"title": "New Missions", "icon": ft.Icons.ADD_TASK, "color": "#10b981"},
             {"title": "View All Car", "icon": ft.Icons.DIRECTIONS_CAR, "color": "#f59e0b"},
-            {"title": "Add New Car", "icon": ft.Icons.CAR_CRASH_ROUNDED, "color": "#8b5cf6"}
+            {"title": "View All Mission", "icon": ft.Icons.VIEW_LIST, "color": "#8b5cf6"}
         ]
         
         return ft.Container(
             content=ft.Column([
-                ft.Text("Actions Rapides :", size=18, weight=ft.FontWeight.BOLD, color="#1e293b", text_align="CENTER"),
+                ft.Text("Quick actions:", size=18, weight=ft.FontWeight.BOLD, color="#1e293b", text_align="CENTER"),
                 ft.Divider(height=1, color="#e2e8f0"),
                 ft.Column([
                     ft.ElevatedButton(
@@ -259,7 +271,7 @@ def dashboard_router(page: ft.Page):
     def create_recent_activities():
         """Create recent activities section using real data"""
         try:
-            activities_data = get_recent_activities(4)  # Get 4 recent activities
+            activities_data = get_recent_activities(14)  # Get 14 recent activities
             
             if not activities_data:
                 # Fallback activities if database is empty
@@ -284,30 +296,30 @@ def dashboard_router(page: ft.Page):
                 time_diff = datetime.now() - dt.replace(tzinfo=None)
                 
                 if time_diff.days > 0:
-                    time_str = f"Il y a {time_diff.days} jour(s)"
+                    time_str = f"There is {time_diff.days} day(s)"
                 elif time_diff.seconds > 3600:
                     hours = time_diff.seconds // 3600
-                    time_str = f"Il y a {hours}h"
+                    time_str = f"There is {hours}h"
                 elif time_diff.seconds > 60:
                     minutes = time_diff.seconds // 60
-                    time_str = f"Il y a {minutes} min"
+                    time_str = f"There is {minutes} min"
                 else:
-                    time_str = "Maintenant"
+                    time_str = "NOW"
             except:
-                time_str = "Récemment"
+                time_str = "Recently"
             
             # Format activity message based on type
             if activity_type == 'mission_created':
-                message = f"Mission créée: {activity_data.get('title', 'Unknown')}"
+                message = f"Mission created: {activity_data.get('title', 'Unknown')}"
                 activity_type_display = "success"
             elif activity_type == 'mission_status_updated':
-                message = f"Mission mise à jour: {activity_data.get('new_status', 'Unknown')}"
+                message = f"Update mission: {activity_data.get('new_status', 'Unknown')}"
                 activity_type_display = "info"
             elif activity_type == 'user_login':
-                message = f"Connexion utilisateur: {activity_data.get('username', 'Unknown')}"
+                message = f"User connection: {activity_data.get('username', 'Unknown')}"
                 activity_type_display = "info"
             else:
-                message = activity_data.get('message', f'Activité: {activity_type}')
+                message = activity_data.get('message', f'Activity: {activity_type}')
                 activity_type_display = "info"
             
             return {
@@ -329,7 +341,7 @@ def dashboard_router(page: ft.Page):
         
         return ft.Container(
             content=ft.Column([
-                ft.Text("Activités Récentes :", size=18, weight=ft.FontWeight.BOLD, color="#1e293b"),
+                ft.Text("Recent Activities:", size=18, weight=ft.FontWeight.BOLD, color="#1e293b"),
                 ft.Divider(height=1, color="#e2e8f0"),
                 ft.Column([
                     ft.Container(
@@ -361,15 +373,14 @@ def dashboard_router(page: ft.Page):
     
     def handle_quick_action(title):
         """Handle quick action clicks"""
-        if title == "Nouveau Projet":
+        if title == "New Missions":
             go_to("/add-mission")
-        elif title == "Ajouter Employé":
+        elif title == "Add Employé":
             go_to("/adduser")
         elif title == "View All Car":
             go_to("/cars")
-        else:
-            go_to("/add-vehicle")
-            # Show snackbar for other actions
+        elif title == "View All Mission":
+            go_to("/missions")
             
     # ========== VIEW FUNCTIONS ==========
     
@@ -407,7 +418,7 @@ def dashboard_router(page: ft.Page):
                 ft.Container(
                     content=content,
                     expand=True,
-                    margin=ft.margin.only(left=15)
+                    margin=ft.margin.only(left=10)
                 )
             ]
         )
@@ -436,11 +447,11 @@ def dashboard_router(page: ft.Page):
             }
             
             def view_employee(e):
-                print(f"Viewing employee: {employee_data['name']}")
+                go_to(f"/view_employee/{employee_data['id']}")
                 # Here you could navigate to a detailed employee view
             
             def edit_employee(e):
-                print(f"Editing employee: {employee_data['name']}")
+                go_to(f"/edit_employee/{employee_data['id']}")
                 # Here you could navigate to an employee edit form
             
             return ft.Card(
@@ -492,7 +503,7 @@ def dashboard_router(page: ft.Page):
                         ft.Row([
                             ft.Icon(ft.Icons.LOGIN, size=16, color=ft.Colors.GREY_500),
                             ft.Text(
-                                f"Dernière connexion: {employee_data.get('last_login', 'Jamais') or 'Jamais'}",
+                                f"Last login: {employee_data.get('last_login', 'Never') or 'Never'}",
                                 size=10,
                                 color=ft.Colors.GREY_500
                             )
@@ -640,6 +651,12 @@ def dashboard_router(page: ft.Page):
         # Initial load
         update_employee_list()
         
+        def refresh_employees_and_update():
+                """Refresh employees data and update the view"""
+                refresh_employees_data()
+                update_employee_list(page)
+                show_snackbar("Updated data", ft.Colors.GREEN)
+        
         # Return the complete content
         content = ft.Column([
             # Search
@@ -664,11 +681,12 @@ def dashboard_router(page: ft.Page):
         return ft.View(
             route="/employees",
             appbar=create_app_bar(
-                "Employés",
+                "Employees",
                 actions=[
                     ft.IconButton(
                         icon=ft.Icons.REFRESH, 
                         tooltip="Refresh", 
+                        on_click=lambda e: refresh_employees_and_update()
                     ),
                     ft.IconButton(
                         icon=ft.Icons.PERSON_ADD, 
@@ -676,7 +694,7 @@ def dashboard_router(page: ft.Page):
                         icon_color="#3b82f6",
                         on_click=lambda e: go_to("/adduser")
                     )
-                ]
+                ]   
             ),
             navigation_bar=create_bottom_nav(1),
             controls=[
@@ -687,13 +705,524 @@ def dashboard_router(page: ft.Page):
                 )
             ]
         )
+    def edit_employees(employee_id: str = None):
+        """Create and return the employee edit/view content"""
         
-        def refresh_employees_and_update():
-            """Refresh employees data and update the view"""
-            refresh_employees_data()
-            update_employee_list(page)
-            show_snackbar("Données actualisées", ft.Colors.GREEN)
-    
+        # Get employee data if ID provided
+        employee_data = None
+        if employee_id:
+            employee_data = get_employee_by_id(employee_id)
+            if not employee_data:
+                # If employee not found, show error and redirect
+                def show_error_and_redirect():
+                    show_snackbar("Employee not found", ft.Colors.RED)
+                    go_to("/employees")
+                
+                page.add(ft.Container())  # Placeholder
+                page.update()
+                show_error_and_redirect()
+                return
+
+        # Get departments for dropdown
+        departments_data = db.get_all_departments()
+        department_options = [ft.dropdown.Option(key=str(dept.get('id', dept['name'])), 
+                                            text=dept['name'].title()) for dept in departments_data]
+        
+        # Form fields
+        full_name_field = ft.TextField(
+            label="Full Name",
+            value=employee_data.get('full_name', '') if employee_data else '',
+            width=300,
+            border_radius=12,
+            border_color=BLACK,
+            bgcolor=ft.Colors.WHITE
+        )
+        
+        username_field = ft.TextField(
+            label="Username",
+            value=employee_data.get('username', '') if employee_data else '',
+            width=300,
+            border_radius=12,
+            bgcolor=ft.Colors.WHITE,
+            border_color=BLACK,
+            disabled=bool(employee_data)  
+        )
+        
+        password_field = ft.TextField(
+            label="Password" if not employee_data else "New Password (leave empty to keep current)",
+            password=True,
+            can_reveal_password=True,
+            width=300,
+            border_radius=12,
+            border_color=BLACK,
+            bgcolor=ft.Colors.WHITE
+        )
+        
+        role_field = ft.Dropdown(
+            label="Role",
+            options=[
+                ft.dropdown.Option("admin", "Administrator"),
+                ft.dropdown.Option("secretaire", "secretaire"),
+                ft.dropdown.Option("team_leader", "team_leader"),
+                ft.dropdown.Option("technicien", "technicien")
+            ],
+            value=employee_data.get('role', '') if employee_data else '',
+            width=300,
+            bgcolor=ft.Colors.WHITE,
+            border_color=BLACK,
+            border_radius=12
+        )
+        
+        department_field = ft.Dropdown(
+            label="Department",
+            options=department_options,
+            value=str(employee_data.get('department_id', '')) if employee_data else '',
+            width=300,
+            border_color=BLACK,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=12
+        )
+        
+        active_field = ft.Checkbox(
+            label="Active Employee",
+            value=employee_data.get('active', True) if employee_data else True
+        )
+                
+        # Phone field (if you want to add it)
+        phone_field = ft.TextField(
+            label="Phone Number (Optional)",
+            value=employee_data.get('phone', '') if employee_data else '',
+            width=300,
+            border_color=BLACK,
+            border_radius=12,
+            bgcolor=ft.Colors.WHITE
+        )
+        
+        # Email field (if you want to add it)
+        email_field = ft.TextField(
+            label="Email (Optional)",
+            border_color=BLACK,
+            value=employee_data.get('email', '') if employee_data else '',
+            width=300,
+            border_radius=12,
+            bgcolor=ft.Colors.WHITE
+        )
+        
+        # Loading state
+        is_loading = False
+        
+        def validate_form():
+            """Validate form fields"""
+            errors = []
+            
+            if not full_name_field.value or not full_name_field.value.strip():
+                errors.append("Full name is required")
+            
+            if not username_field.value or not username_field.value.strip():
+                errors.append("Username is required")
+            
+            if not employee_data and (not password_field.value or not password_field.value.strip()):
+                errors.append("Password is required for new employees")
+            
+            if not role_field.value:
+                errors.append("Role is required")
+            
+            if not department_field.value:
+                errors.append("Department is required")
+            
+            # Validate username format (alphanumeric and underscore only)
+            username = username_field.value.strip() if username_field.value else ""
+            if username and not username.replace('_', '').isalnum():
+                errors.append("Username can only contain letters, numbers, and underscores")
+            
+            # Validate email format if provided
+            email = email_field.value.strip() if email_field.value else ""
+            if email and '@' not in email:
+                errors.append("Invalid email format")
+            
+            return errors
+        
+        def save_employee(e):
+            """Save employee data"""
+            nonlocal is_loading
+            
+            if is_loading:
+                return
+            
+            # Validate form
+            validation_errors = validate_form()
+            if validation_errors:
+                error_message = "\n".join(validation_errors)
+                show_snackbar(f"Validation errors:\n{error_message}", ft.Colors.RED)
+                return
+            
+            is_loading = True
+            save_button.disabled = True
+            save_button.text = "Saving..."
+            page.update()
+            
+            try:
+                # Prepare employee data
+                employee_update_data = {
+                    'full_name': full_name_field.value.strip(),
+                    'username': username_field.value.strip(),
+                    'role': role_field.value,
+                    'department_id': int(department_field.value),
+                    'active': active_field.value
+                }
+                
+                # Add optional fields if provided
+                if phone_field.value and phone_field.value.strip():
+                    employee_update_data['phone'] = phone_field.value.strip()
+                
+                if email_field.value and email_field.value.strip():
+                    employee_update_data['email'] = email_field.value.strip()
+                
+                # Add password if provided
+                if password_field.value and password_field.value.strip():
+                    employee_update_data['password'] = password_field.value
+                
+                # Save employee
+                if employee_data:  # Update existing employee
+                    success = update_employee(employee_data['id'], employee_update_data)
+                    if success:
+                        show_snackbar("Employee updated successfully!", ft.Colors.GREEN)
+                        # Refresh employees data
+                        refresh_employees_data()
+                        go_to("/employees")
+                    else:
+                        show_snackbar("Failed to update employee", ft.Colors.RED)
+                else:  # Create new employee
+                    success = create_user(
+                        username=employee_update_data['username'],
+                        full_name=employee_update_data['full_name'],
+                        password=employee_update_data['password'],
+                        role=employee_update_data['role'],
+                        department_id=employee_update_data['department_id'],
+                        active=employee_update_data['active']
+                    )
+                    
+                    if success:
+                        show_snackbar("Employee created successfully!", ft.Colors.GREEN)
+                        # Refresh employees data
+                        refresh_employees_data()
+                        go_to("/employees")
+                    else:
+                        show_snackbar("Failed to create employee. Username may already exist.", ft.Colors.RED)
+            
+            except Exception as ex:
+                print(f"Error saving employee: {ex}")
+                show_snackbar("An error occurred while saving employee", ft.Colors.RED)
+            
+            finally:
+                is_loading = False
+                save_button.disabled = False
+                save_button.text = "Save Employee"
+                page.update()
+        
+        def cancel_edit(e):
+            """Cancel editing and go back"""
+            go_to("/employees")
+        
+        # Action buttons
+        save_button = ft.ElevatedButton(
+            "Save Employee",
+            icon=ft.Icons.SAVE,
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.BLUE,
+                color=ft.Colors.WHITE,
+                shape=ft.RoundedRectangleBorder(radius=12),
+                padding=ft.padding.symmetric(horizontal=24, vertical=12)
+            ),
+            on_click=save_employee
+        )
+        
+        cancel_button = ft.ElevatedButton(
+            "Cancel",
+            icon=ft.Icons.CANCEL,
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.GREY_300,
+                color=ft.Colors.GREY_800,
+                shape=ft.RoundedRectangleBorder(radius=12),
+                padding=ft.padding.symmetric(horizontal=24, vertical=12)
+            ),
+            on_click=cancel_edit
+        )
+        
+        # Employee info display (for edit mode)
+        info_section = None
+        if employee_data:
+            info_section = ft.Container(
+                content=ft.Column([
+                    ft.Text("Employee Information", size=18, weight=ft.FontWeight.BOLD),
+                    ft.Divider(),
+                    ft.Row([
+                        ft.Column([
+                            ft.Text(f"Created: {employee_data.get('created_at', 'Unknown')[:10] if employee_data.get('created_at') else 'Unknown'}", 
+                                    size=12, color=ft.Colors.GREY_600),
+                            ft.Text(f"Last Updated: {employee_data.get('updated_at', 'Unknown')[:10] if employee_data.get('updated_at') else 'Unknown'}", 
+                                    size=12, color=ft.Colors.GREY_600),
+                        ], spacing=4),
+                        ft.Column([
+                            ft.Text(f"Last Login: {employee_data.get('last_login', 'Never')[:10] if employee_data.get('last_login') else 'Never'}", 
+                                    size=12, color=ft.Colors.GREY_600),
+                            ft.Text(f"Status: {'Active' if employee_data.get('active') else 'Inactive'}", 
+                                    size=12, 
+                                    color=ft.Colors.GREEN if employee_data.get('active') else ft.Colors.RED,
+                                    weight=ft.FontWeight.BOLD),
+                        ], spacing=4)
+                    ])
+                ], spacing=8),
+                bgcolor=ft.Colors.BLUE_GREY_50,
+                border_radius=12,
+                padding=16,
+                margin=ft.margin.only(bottom=20)
+            )
+        
+        # Form content
+        form_content = ft.Column([
+            # Info section for existing employees
+            info_section if info_section else ft.Container(),
+            
+            # Form title
+            ft.Text(
+                f"{'Edit Employee' if employee_data else 'Add New Employee'}",
+                size=24,
+                weight=ft.FontWeight.BOLD,
+                color=ft.Colors.BLUE_GREY_800
+            ),
+            
+            ft.Divider(),
+            
+            # Form fields in two columns
+            ft.Column([
+                ft.Column([
+                    full_name_field,
+                    username_field,
+                    password_field,
+                    role_field
+                ], spacing=16),
+                
+                ft.Column([
+                    department_field,
+                    phone_field,
+                    email_field,
+                    ft.Container(
+                        content=active_field,
+                        margin=ft.margin.only(top=12)
+                    )
+                ], spacing=16)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            
+            ft.Divider(),
+            
+            # Action buttons
+            ft.Row([
+                cancel_button,
+                save_button
+            ], alignment=ft.MainAxisAlignment.END, spacing=12)
+            
+        ], spacing=10, scroll=ft.ScrollMode.AUTO)
+        
+        # Return the complete view
+        return ft.View(
+            route=f"/edit_employee{'/' + employee_id if employee_id else ''}",
+            appbar=create_app_bar(
+                f"{'Edit Employee' if employee_data else 'Add Employee'}",
+                actions=[
+                    ft.IconButton(
+                        icon=ft.Icons.ARROW_BACK,
+                        tooltip="Back to Employees",
+                        on_click=lambda e: go_to("/employees")
+                    )
+                ]
+            ),
+            controls=[
+                ft.Container(
+                    content=form_content,
+                    expand=True,
+                    margin=ft.margin.only(left=15, right=15, top=10, bottom=10),
+                    padding=20
+                )
+            ]
+        )
+        
+    def view_employee_detail(employee_id: str):
+        """View employee details (read-only)"""
+        employee_data = db.get_employee_by_id(employee_id)
+        
+        if not employee_data:
+            show_snackbar("Employee not found", ft.Colors.RED)
+            go_to("/employees")
+            return
+        
+        # Get department name
+        department_name = "Unknown"
+        if employee_data.get('department_id'):
+            departments = db.get_all_departments()
+            for dept in departments:
+                if str(dept.get('id')) == str(employee_data['department_id']):
+                    department_name = dept['name'].title()
+                    break
+        
+        # Create read-only view
+        content = ft.Column([
+            # Header
+            ft.Container(
+                content=ft.Row([
+                    ft.CircleAvatar(
+                        content=ft.Text(
+                            employee_data['full_name'][0].upper(),
+                            size=24,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE
+                        ),
+                        bgcolor=ft.Colors.BLUE,
+                        radius=30
+                    ),
+                    ft.Column([
+                        ft.Text(
+                            employee_data['full_name'],
+                            size=20,
+                            weight=ft.FontWeight.BOLD
+                        ),
+                        ft.Text(
+                            f"@{employee_data['username']}",
+                            size=14,
+                            color=ft.Colors.GREY_600
+                        )
+                    ], spacing=0, expand=True),
+                    ft.Container(
+                        content=ft.Text(
+                            "ACTIVE" if employee_data['active'] else "INACTIVE",
+                            size=12,
+                            color=ft.Colors.WHITE,
+                            weight=ft.FontWeight.BOLD
+                        ),
+                        bgcolor=ft.Colors.GREEN if employee_data['active'] else ft.Colors.RED,
+                        border_radius=12,
+                        padding=ft.padding.symmetric(horizontal=12, vertical=6)
+                    )
+                ]),
+                bgcolor=ft.Colors.WHITE,
+                border_radius=12,
+                padding=20,
+                margin=ft.margin.only(bottom=20)
+            ),
+            
+            # Details cards
+            ft.Column([
+                # Basic info
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("Basic Information", size=16, weight=ft.FontWeight.BOLD),
+                        ft.Divider(),
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.WORK, color=ft.Colors.BLUE),
+                            title=ft.Text("Role"),
+                            subtitle=ft.Text(employee_data['role'].replace('_', ' ').title())
+                        ),
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.BUSINESS, color=ft.Colors.BLUE),
+                            title=ft.Text("Department"),
+                            subtitle=ft.Text(department_name)
+                        ),
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.EMAIL, color=ft.Colors.BLUE),
+                            title=ft.Text("Email"),
+                            subtitle=ft.Text(employee_data.get('email', 'Not provided'))
+                        ),
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.PHONE, color=ft.Colors.BLUE),
+                            title=ft.Text("Phone"),
+                            subtitle=ft.Text(employee_data.get('phone', 'Not provided'))
+                        )
+                    ], spacing=0),
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=12,
+                    padding=20,
+                    expand=True
+                ),
+                
+                # Activity info
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("Activity Information", size=16, weight=ft.FontWeight.BOLD),
+                        ft.Divider(),
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.CALENDAR_TODAY, color=ft.Colors.GREEN),
+                            title=ft.Text("Created"),
+                            subtitle=ft.Text(employee_data.get('created_at', 'Unknown')[:10] if employee_data.get('created_at') else 'Unknown')
+                        ),
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.UPDATE, color=ft.Colors.ORANGE),
+                            title=ft.Text("Last Updated"),
+                            subtitle=ft.Text(employee_data.get('updated_at', 'Unknown')[:10] if employee_data.get('updated_at') else 'Unknown')
+                        ),
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.LOGIN, color=ft.Colors.PURPLE),
+                            title=ft.Text("Last Login"),
+                            subtitle=ft.Text(employee_data.get('last_login', 'Never')[:10] if employee_data.get('last_login') else 'Never')
+                        )
+                    ], spacing=0),
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=12,
+                    padding=20,
+                    expand=True
+                )
+            ], spacing=20),
+            
+            # Action buttons
+            ft.Row([
+                ft.ElevatedButton(
+                    "Edit Employee",
+                    icon=ft.Icons.EDIT,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.BLUE,
+                        color=ft.Colors.WHITE,
+                        shape=ft.RoundedRectangleBorder(radius=12)
+                    ),
+                    on_click=lambda e: go_to(f"/edit_employee/{employee_id}")
+                ),
+                ft.ElevatedButton(
+                    "Back to List",
+                    icon=ft.Icons.ARROW_BACK,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.GREY_300,
+                        color=ft.Colors.GREY_800,
+                        shape=ft.RoundedRectangleBorder(radius=12)
+                    ),
+                    on_click=lambda e: go_to("/employees")
+                )
+            ], alignment=ft.MainAxisAlignment.END, spacing=12)
+            
+        ], spacing=20, scroll=ft.ScrollMode.AUTO)
+        
+        return ft.View(
+            route=f"/view_employee/{employee_id}",
+            appbar=create_app_bar(
+                f"Employee Details",
+                actions=[
+                    ft.IconButton(
+                        icon=ft.Icons.EDIT,
+                        tooltip="Edit Employee",
+                        on_click=lambda e: go_to(f"/edit_employee/{employee_id}")
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.ARROW_BACK,
+                        tooltip="Back to Employees",
+                        on_click=lambda e: go_to("/employees")
+                    )
+                ]
+            ),
+            controls=[
+                ft.Container(
+                    content=content,
+                    expand=True,
+                    margin=ft.margin.only(left=15, right=15, top=10, bottom=10)
+                )
+            ]
+        )
     def tools_view():
         """Create and return the complete tools management content using real data"""
         
@@ -903,7 +1432,7 @@ def dashboard_router(page: ft.Page):
                 actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
             )
             
-            page.dialog = dialog
+            page.open(dialog)
             dialog.open = True
             page.update()
         
@@ -1166,9 +1695,8 @@ def dashboard_router(page: ft.Page):
         language_dropdown = ft.Dropdown(
             options=[
                 ft.dropdown.Option("English"),
-                ft.dropdown.Option("French"),
-                ft.dropdown.Option("Arabic"),
-                ft.dropdown.Option("Spanish")
+                ft.dropdown.Option("French")
+
             ],
             value="English",
             width=120,
@@ -1185,10 +1713,10 @@ def dashboard_router(page: ft.Page):
             print(f"Dark mode: {'On' if is_dark else 'Off'}")
         
         def toggle_notifications(is_enabled):
-            print(f"Notifications: {'Enabled' if is_enabled else 'Disabled'}")
+            show_snackbar(f"Notifications: {'Enabled' if is_enabled else 'Disabled'}",ft.Colors.GREEN_300)
         
         def change_language(language):
-            print(f"Language changed to: {language}")
+            show_snackbar(f"Language changed to: {language}", ft.Colors.GREEN_300)
         
         def show_about():
             dialog = ft.AlertDialog(
@@ -1205,7 +1733,7 @@ def dashboard_router(page: ft.Page):
                 dialog.open = False
                 page.update()
             
-            page.dialog = dialog
+            page.open(dialog)
             dialog.open = True
             page.update()
         
@@ -1250,7 +1778,7 @@ def dashboard_router(page: ft.Page):
                 close_dialog()
                 show_snackbar("Reset cancelled - Feature disabled for safety", ft.Colors.ORANGE)
             
-            page.dialog = dialog
+            page.open(dialog)
             dialog.open = True
             page.update()
         
@@ -1400,15 +1928,9 @@ def dashboard_router(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Text(
-                                f"© 2024 {app_info['developer']}",
+                                f"© 2024 {app_info['developer']} All rights reserved",
                                 size=12,
                                 color=ft.Colors.GREY_500,
-                                text_align=ft.TextAlign.CENTER
-                            ),
-                            ft.Text(
-                                "All rights reserved",
-                                size=10,
-                                color=ft.Colors.GREY_400,
                                 text_align=ft.TextAlign.CENTER
                             )
                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -1421,7 +1943,7 @@ def dashboard_router(page: ft.Page):
         
         return ft.View(
             route="/settings",
-            appbar=create_app_bar("Paramètres"),
+            appbar=create_app_bar("Settings"),
             navigation_bar=create_bottom_nav(3),
             controls=[
                 ft.Container(
@@ -1449,17 +1971,25 @@ def dashboard_router(page: ft.Page):
         
         # New assignment fields
         assigned_person_dropdown = ft.Ref[ft.Dropdown]()
+        team_display_container = ft.Ref[ft.Column]()
         team_leader_dropdown = ft.Ref[ft.Dropdown]()
-        technician_field = ft.Ref[ft.TextField]()
-        tools_field = ft.Ref[ft.TextField]()
         vehicle_dropdown = ft.Ref[ft.Dropdown]()
+        
+        # Tools multi-select references
+        tools_dropdown = ft.Ref[ft.Dropdown]()
+        tools_display_container = ft.Ref[ft.Column]()  # Changed to Column for better control
         
         # Success/Error message
         message_container = ft.Ref[ft.Container]()
         
+        # Selected tools tracking
+        selected_tools_list = []
+        # Selected team tracking
+        selected_team_list = []
+        
         # Load data from database
         def load_form_data():
-            """Load employees, vehicles, etc. from database"""
+            """Load employees, vehicles, tools, etc. from database"""
             try:
                 # Get employees for assignment
                 employees = get_all_employees()
@@ -1467,20 +1997,146 @@ def dashboard_router(page: ft.Page):
                 
                 # Get team leaders (filter by role)
                 team_leaders = [{"key": emp["id"], "name": emp["name"]} for emp in employees 
-                              if emp["role"] in ["team_leader", "admin"] and emp["status"] == "ACTIVE"]
+                            if emp["role"] in ["team_leader", "admin"] and emp["status"] == "ACTIVE"]
                 
                 # Get available vehicles
                 vehicles = get_all_vehicles()
                 vehicle_list = [{"key": vehicle["id"], "name": f"{vehicle.get('model', 'Unknown')} - {vehicle.get('plate_number', 'No Plate')}"} 
-                               for vehicle in vehicles if vehicle.get("status") == "AVAILABLE"]
+                            for vehicle in vehicles if vehicle.get("status") == "AVAILABLE"]
                 
-                return persons, team_leaders, vehicle_list
+                # Get all tools from database
+                tools = db.get_all_tools()
+                tools_list = [{"key": tool["id"], "name": tool["name"]} for tool in tools if tool.get("status", "AVAILABLE") == "AVAILABLE"]
+                
+                return persons, team_leaders, vehicle_list, tools_list
             except Exception as e:
                 print(f"Error loading form data: {e}")
-                return [], [], []
+                return [], [], [], []
         
         # Load the data
-        PERSONS, TEAM_LEADERS, VEHICLES = load_form_data()
+        PERSONS, TEAM_LEADERS, VEHICLES, TOOLS = load_form_data()
+        
+        # Tool selection handlers
+        def on_tool_select(e):
+            """Add tool to selected list"""
+            if e.control.value:
+                tool_id = e.control.value
+                tool_name = next((t["name"] for t in TOOLS if t["key"] == tool_id), "Unknown Tool")
+                
+                # Check if tool is already selected
+                if tool_id not in [t["id"] for t in selected_tools_list]:
+                    selected_tools_list.append({"id": tool_id, "name": tool_name})
+                    update_tools_display()
+                    
+                # Reset dropdown
+                e.control.value = None
+                e.control.update()
+                
+        def on_person_select(e):
+            """Add person to selected team list"""
+            if e.control.value:
+                person_id = e.control.value
+                person_name = next((p["name"] for p in PERSONS if p["key"] == person_id), "Unknown Person")
+                
+                # Check if person is already selected
+                if person_id not in [p["id"] for p in selected_team_list]:
+                    selected_team_list.append({"id": person_id, "name": person_name})
+                    update_team_display()
+                    
+                # Reset dropdown
+                e.control.value = None
+                e.control.update()
+        def on_person_remove(person_id):
+            """Remove person from selected team list"""
+            nonlocal selected_team_list
+            selected_team_list = [p for p in selected_team_list if p["id"] != person_id]
+            update_team_display()
+
+        def update_team_display():
+            """Update the visual display of selected team members"""
+            try:
+                # Create chips for selected team members
+                chips = []
+                for person in selected_team_list:
+                    chip = ft.Container(
+                        content=ft.Row([
+                            ft.Text(person["name"], size=12, color=BLACK),
+                            ft.IconButton(
+                                icon=ft.Icons.CLOSE,
+                                icon_size=16,
+                                icon_color="#666666",
+                                on_click=lambda e, pid=person["id"]: on_person_remove(pid),
+                                tooltip="Remove person"
+                            )
+                        ], spacing=4, tight=True),
+                        bgcolor="#E8F5E8",
+                        border_radius=16,
+                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                        margin=ft.margin.only(right=4, bottom=4)
+                    )
+                    chips.append(chip)
+                
+                # Update the container content
+                if chips:
+                    team_display_container.current.controls = [
+                        ft.Text("Selected Team Members:", size=12, color="#666666"),
+                        ft.Row(chips, wrap=True, spacing=0)
+                    ]
+                else:
+                    team_display_container.current.controls = []
+                
+                # Only update if the container is already on the page
+                if team_display_container.current.page:
+                    team_display_container.current.update()
+                    
+            except Exception as e:
+                print(f"Error updating team display: {e}")
+                
+        def on_tool_remove(tool_id):
+            """Remove tool from selected list"""
+            nonlocal selected_tools_list
+            selected_tools_list = [t for t in selected_tools_list if t["id"] != tool_id]
+            update_tools_display()
+        
+        def update_tools_display():
+            """Update the visual display of selected tools"""
+            try:
+                # Create chips for selected tools
+                chips = []
+                for tool in selected_tools_list:
+                    chip = ft.Container(
+                        content=ft.Row([
+                            ft.Text(tool["name"], size=12, color=BLACK),
+                            ft.IconButton(
+                                icon=ft.Icons.CLOSE,
+                                icon_size=16,
+                                icon_color="#666666",
+                                on_click=lambda e, tid=tool["id"]: on_tool_remove(tid),
+                                tooltip="Remove tool"
+                            )
+                        ], spacing=4, tight=True),
+                        bgcolor="#E3F2FD",
+                        border_radius=16,
+                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                        margin=ft.margin.only(right=4, bottom=4)
+                    )
+                    chips.append(chip)
+                
+                # Update the container content
+                if chips:
+                    tools_display_container.current.controls = [
+                        ft.Text("Selected Tools:", size=12, color="#666666"),
+                        ft.Row(chips, wrap=True, spacing=0)
+                    ]
+                else:
+                    tools_display_container.current.controls = []
+                
+                # Only update if the container is already on the page
+                if tools_display_container.current.page:
+                    tools_display_container.current.update()
+                    
+            except Exception as e:
+                print(f"Error updating tools display: {e}")
         
         # Form validation
         def validate_form():
@@ -1501,13 +2157,14 @@ def dashboard_router(page: ft.Page):
             if not status_dropdown.current.value:
                 errors.append("Status is required")
                 
-            if not assigned_person_dropdown.current.value:
-                errors.append("Assigned person is required")
+            if not selected_team_list:
+                errors.append("At least one team member is required")
                 
             if not team_leader_dropdown.current.value:
                 errors.append("Team leader is required")
             
             return errors
+
         
         # Show message to user
         def show_message(text, is_error=False):
@@ -1524,6 +2181,8 @@ def dashboard_router(page: ft.Page):
         
         # Clear form
         def clear_form():
+            nonlocal selected_tools_list, selected_team_list
+            
             title_field.current.value = ""
             location_field.current.value = ""
             due_date_field.current.value = ""
@@ -1532,16 +2191,22 @@ def dashboard_router(page: ft.Page):
             description_field.current.value = ""
             assigned_person_dropdown.current.value = None
             team_leader_dropdown.current.value = None
-            technician_field.current.value = ""
-            tools_field.current.value = ""
             vehicle_dropdown.current.value = None
+            tools_dropdown.current.value = None
+            
+            # Clear selected items
+            selected_tools_list = []
+            selected_team_list = []
+            update_tools_display()
+            update_team_display()
             
             # Update all fields
             for field in [title_field.current, location_field.current, due_date_field.current, 
                         due_time_field.current, status_dropdown.current, description_field.current,
                         assigned_person_dropdown.current, team_leader_dropdown.current, 
-                        technician_field.current, tools_field.current, vehicle_dropdown.current]:
-                field.update()
+                        vehicle_dropdown.current, tools_dropdown.current]:
+                if field:
+                    field.update()
         
         # Submit handler
         def on_submit(e):
@@ -1552,15 +2217,9 @@ def dashboard_router(page: ft.Page):
                 show_message(f"Please fix the following errors: {', '.join(errors)}", True)
                 return
             
-            # Parse technicians (comma-separated)
-            technicians_list = []
-            if technician_field.current.value and technician_field.current.value.strip():
-                technicians_list = [tech.strip() for tech in technician_field.current.value.split(",")]
-            
-            # Parse tools (comma-separated)
-            tools_list = []
-            if tools_field.current.value and tools_field.current.value.strip():
-                tools_list = [tool.strip() for tool in tools_field.current.value.split(",")]
+            # Get selected team member IDs
+            selected_team_ids = [person["id"] for person in selected_team_list]
+            selected_tool_ids = [tool["id"] for tool in selected_tools_list]
             
             # Prepare mission data for database
             mission_data = {
@@ -1570,10 +2229,9 @@ def dashboard_router(page: ft.Page):
                 "due_time": due_time_field.current.value.strip(),
                 "status": status_dropdown.current.value,
                 "description": description_field.current.value.strip() if description_field.current.value else "",
-                "assigned_person_id": assigned_person_dropdown.current.value,
+                "assigned_team": selected_team_ids,  # Changed from assigned_person_id
                 "team_leader_id": team_leader_dropdown.current.value,
-                "technicians": technicians_list,
-                "required_tools": tools_list,
+                "required_tools": selected_tool_ids,
                 "vehicle_id": vehicle_dropdown.current.value,
                 "created_by": current_user.get("id") if current_user else None,
             }
@@ -1696,7 +2354,8 @@ def dashboard_router(page: ft.Page):
         
         # Assignment fields with real data
         assigned_person_dropdown.current = ft.Dropdown(
-            label="Assigned Person *",
+            label="Select Team Members",
+            hint_text="Choose team members for this mission",
             options=[ft.dropdown.Option(p["key"], p["name"]) for p in PERSONS],
             border_radius=8,
             bgcolor=WHITE,
@@ -1704,7 +2363,18 @@ def dashboard_router(page: ft.Page):
             focused_border_color=GOLD,
             label_style=ft.TextStyle(color="#666666"),
             text_style=ft.TextStyle(color=BLACK),
+            on_change=on_person_select,
         )
+        
+        team_display_container.current = ft.Column([], spacing=4)
+        team_section = ft.Container(
+            content=ft.Column([
+                assigned_person_dropdown.current,
+                ft.Container(height=8),
+                team_display_container.current,
+            ], spacing=4),
+            padding=0,
+            )
         
         team_leader_dropdown.current = ft.Dropdown(
             label="Team Leader *",
@@ -1717,28 +2387,32 @@ def dashboard_router(page: ft.Page):
             text_style=ft.TextStyle(color=BLACK),
         )
         
-        technician_field.current = ft.TextField(
-            label="Additional Technicians",
-            hint_text="Enter technician names separated by commas",
-            prefix_icon=ft.Icons.ENGINEERING,
+
+        # Tools multi-select dropdown
+        tools_dropdown.current = ft.Dropdown(
+            label="Select Tools",
+            hint_text="Choose tools for this mission",
+            options=[ft.dropdown.Option(t["key"], t["name"]) for t in TOOLS],
             border_radius=8,
             bgcolor=WHITE,
             border_color="#E0E0E0",
             focused_border_color=GOLD,
             label_style=ft.TextStyle(color="#666666"),
             text_style=ft.TextStyle(color=BLACK),
+            on_change=on_tool_select,
         )
         
-        tools_field.current = ft.TextField(
-            label="Required Tools",
-            hint_text="Enter required tools separated by commas",
-            prefix_icon=ft.Icons.BUILD,
-            border_radius=8,
-            bgcolor=WHITE,
-            border_color="#E0E0E0",
-            focused_border_color=GOLD,
-            label_style=ft.TextStyle(color="#666666"),
-            text_style=ft.TextStyle(color=BLACK),
+        # Tools display container (Column for better control)
+        tools_display_container.current = ft.Column([], spacing=4)
+        
+        # Tools container wrapper
+        tools_section = ft.Container(
+            content=ft.Column([
+                tools_dropdown.current,
+                ft.Container(height=8),
+                tools_display_container.current,
+            ], spacing=4),
+            padding=0,
         )
         
         vehicle_dropdown.current = ft.Dropdown(
@@ -1833,10 +2507,8 @@ def dashboard_router(page: ft.Page):
                         color=BLACK,
                     ),
                     
-                    assigned_person_dropdown.current,
+                    team_section,  # Multi-select team section
                     team_leader_dropdown.current,
-                    technician_field.current,
-                    
                     # Resources Section
                     ft.Container(height=10),  # Spacer
                     ft.Text(
@@ -1846,7 +2518,7 @@ def dashboard_router(page: ft.Page):
                         color=BLACK,
                     ),
                     
-                    tools_field.current,
+                    tools_section,  # Multi-select tools section
                     vehicle_dropdown.current,
                     
                     # Additional Info Section
@@ -1900,18 +2572,12 @@ def dashboard_router(page: ft.Page):
         is_loading = False
         
         # Get departments from database
-        try:
-            departments_data = db.get_all_departments()
-            departements = {dept['id']: dept['name'] for dept in departments_data}
-        except Exception as e:
-            print(f"Error loading departments: {e}")
-            # Fallback departments
-            departements = {
-                1: "logistic",
-                2: "administration", 
-                3: "terrain",
-                4: "admin"
-            }
+        departements = {
+            1: "logistic",
+            2: "administration", 
+            3: "Field_Operations",
+            4: "admin"
+        }
         
         def get_departement_id_from_dict(dropdown_value, departement_dict):
             if dropdown_value:
@@ -2615,7 +3281,7 @@ def dashboard_router(page: ft.Page):
                 actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
             )
             
-            page.dialog = dialog
+            page.open(dialog)
             dialog.open = True
             page.update()
         
@@ -3910,6 +4576,850 @@ def dashboard_router(page: ft.Page):
             ]
         )
     
+    
+    def view_missions():
+        """Mission management page using real database data"""
+        
+        def format_date_short(date_string: str) -> str:
+            """Format date string for display (short version)"""
+            try:
+                if not date_string:
+                    return "Not set"
+                
+                # Parse ISO format date
+                dt = datetime.fromisoformat(date_string.replace('Z', '+00:00'))
+                return dt.strftime("%b %d, %Y")
+            except:
+                return date_string
+        
+        def get_status_color(status):
+            """Return color based on mission status"""
+            if status == "PENDING":
+                return ORANGE
+            elif status == "IN_PROGRESS":
+                return GOLD
+            elif status == "COMPLETED":
+                return GREEN
+            elif status == "CANCELLED":
+                return RED
+            else:
+                return GRAY
+
+        def get_priority_color(priority):
+            """Return color based on priority level"""
+            if priority == "LOW":
+                return GREEN
+            elif priority == "MEDIUM":
+                return ORANGE
+            elif priority == "HIGH":
+                return RED
+            elif priority == "URGENT":
+                return RED
+            else:
+                return GRAY
+
+        def create_mission_card(mission):
+            """Create a mission card component using real data"""
+            def go_to_detail(e):
+                show_mission_details(mission)
+            
+            def quick_status_update(new_status):
+                def update_status(e):
+                    try:
+                        success = update_mission_status(mission['id'], new_status)
+                        if success:
+                            show_snackbar(f"Mission status updated to {new_status}", GREEN)
+                            refresh_missions_and_update()
+                        else:
+                            show_snackbar("Failed to update mission status", RED)
+                    except Exception as ex:
+                        show_snackbar(f"Error: {str(ex)}", RED)
+                return update_status
+            
+            # Quick action buttons based on current status
+            quick_actions = []
+            current_status = mission.get('status', 'PENDING')
+            
+            if current_status == 'PENDING':
+                quick_actions.append(
+                    ft.IconButton(
+                        ft.Icons.PLAY_ARROW,
+                        tooltip="Start Mission",
+                        icon_color=GOLD,
+                        on_click=quick_status_update('IN_PROGRESS')
+                    )
+                )
+            elif current_status == 'IN_PROGRESS':
+                quick_actions.append(
+                    ft.IconButton(
+                        ft.Icons.CHECK_CIRCLE,
+                        tooltip="Complete Mission",
+                        icon_color=GREEN,
+                        on_click=quick_status_update('COMPLETED')
+                    )
+                )
+            
+            return ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Text(
+                            f"#{mission.get('id', 'Unknown')[:8]}",
+                            size=14,
+                            color=ft.Colors.GREY_600,
+                            weight=ft.FontWeight.W_500
+                        ),
+                        ft.Container(
+                            content=ft.Text(
+                                mission.get("status", "Unknown"),
+                                size=12,
+                                color=WHITE,
+                                weight=ft.FontWeight.BOLD
+                            ),
+                            bgcolor=get_status_color(mission.get("status", "Unknown")),
+                            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                            border_radius=12
+                        )
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    
+                    ft.Text(
+                        mission.get("title", "Untitled Mission"),
+                        size=18,
+                        color=BLACK,
+                        weight=ft.FontWeight.BOLD
+                    ),
+                    
+                    ft.Row([
+                        ft.Icon(ft.Icons.LOCATION_ON, size=16, color=ft.Colors.GREY_600),
+                        ft.Text(
+                            mission.get("location", "No location"),
+                            size=14,
+                            color=ft.Colors.GREY_700
+                        )
+                    ], spacing=5),
+                    
+                    ft.Row([
+                        ft.Icon(ft.Icons.PERSON, size=16, color=ft.Colors.GREY_600),
+                        ft.Text(
+                            f"Assigned: {mission.get('assigned_user', {}).get('full_name', 'Not assigned')}",
+                            size=14,
+                            color=ft.Colors.GREY_700
+                        )
+                    ], spacing=5),
+                    
+                    ft.Row([
+                        ft.Icon(ft.Icons.CALENDAR_TODAY, size=16, color=ft.Colors.GREY_600),
+                        ft.Text(
+                            f"Due: {format_date_short(mission.get('due_date', ''))}",
+                            size=12,
+                            color=ft.Colors.GREY_600
+                        )
+                    ], spacing=5),
+                    
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Text(
+                                mission.get('priority', 'MEDIUM'),
+                                color=WHITE,
+                                size=10,
+                                weight=ft.FontWeight.BOLD
+                            ),
+                            bgcolor=get_priority_color(mission.get('priority', 'MEDIUM')),
+                            padding=ft.padding.symmetric(horizontal=8, vertical=2),
+                            border_radius=8
+                        ),
+                        ft.Row([
+                            *quick_actions,
+                            ft.IconButton(
+                                ft.Icons.VISIBILITY,
+                                tooltip="View Details",
+                                icon_color=BLACK,
+                                on_click=go_to_detail
+                            )
+                        ], spacing=0)
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+                ], spacing=8),
+                padding=16,
+                margin=ft.margin.only(bottom=8),
+                bgcolor=WHITE,
+                border_radius=12,
+                border=ft.border.all(1, ft.Colors.GREY_300),
+                ink=True,
+                on_click=go_to_detail
+            )
+        
+        def show_mission_details(mission):
+            """Show detailed mission information with personnel, tools, and vehicles"""
+            def close_dialog(e):
+                dialog.open = False
+                page.update()
+            
+            def update_status_action(new_status):
+                def update_status(e):
+                    try:
+                        success = update_mission_status(mission["id"], new_status)
+                        if success:
+                            # Add log entry
+                            add_mission_log(mission["id"], f"Status changed to {new_status}", "System")
+                            show_snackbar(f"Mission status updated to {new_status}", GREEN)
+                            refresh_missions_and_update()
+                            close_dialog(e)
+                        else:
+                            show_snackbar("Failed to update mission status", RED)
+                    except Exception as ex:
+                        show_snackbar(f"Error: {str(ex)}", RED)
+                return update_status
+            
+            def add_note_action(e):
+                def save_note(e):
+                    note_text = note_field.value.strip()
+                    if note_text:
+                        try:
+                            success = add_mission_log(mission["id"], "Note added", "Current User", note_text)
+                            if success:
+                                show_snackbar("Note added successfully", GREEN)
+                                note_field.value = ""
+                                note_field.update()
+                            else:
+                                show_snackbar("Failed to add note", RED)
+                        except Exception as ex:
+                            show_snackbar(f"Error: {str(ex)}", RED)
+                    else:
+                        show_snackbar("Please enter a note", RED)
+                
+                note_field = ft.TextField(
+                    hint_text="Enter your note...",
+                    multiline=True,
+                    max_lines=3,
+                    bgcolor=WHITE
+                )
+                
+                note_dialog = ft.AlertDialog(
+                    title=ft.Text("Add Note", weight=ft.FontWeight.BOLD),
+                    content=ft.Container(
+                        content=note_field,
+                        width=300,
+                        height=100
+                    ),
+                    actions=[
+                        ft.TextButton("Cancel", on_click=lambda e: (setattr(note_dialog, 'open', False), page.update())),
+                        ft.ElevatedButton(
+                            "Save Note",
+                            bgcolor=GOLD,
+                            color=BLACK,
+                            on_click=save_note
+                        )
+                    ]
+                )
+                
+                page.open(note_dialog)
+                note_dialog.open = True
+                page.update()
+            
+            # Helper functions to create resource items
+            def create_personnel_item(person):
+                """Create a personnel item display"""
+                return ft.Container(
+                    content=ft.Row([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.PERSON, color=WHITE, size=16),
+                            bgcolor=GOLD,
+                            width=32,
+                            height=32,
+                            border_radius=16,
+                            alignment=ft.alignment.center
+                        ),
+                        ft.Column([
+                            ft.Text(
+                                person.get('name', person.get('full_name', 'Unknown')),
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color=BLACK
+                            ),
+                            ft.Text(
+                                person.get('role', person.get('position', 'Staff')),
+                                size=10,
+                                color=ft.Colors.GREY_600
+                            )
+                        ], spacing=2, expand=True),
+                        ft.Container(
+                            content=ft.Text(
+                                person.get('status', 'Available'),
+                                color=WHITE,
+                                size=8,
+                                weight=ft.FontWeight.BOLD
+                            ),
+                            bgcolor=GREEN if person.get('status', 'Available') == 'Available' else ORANGE,
+                            padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                            border_radius=8
+                        )
+                    ], spacing=8),
+                    bgcolor=ft.Colors.GREY_50,
+                    padding=8,
+                    border_radius=6,
+                    margin=ft.margin.only(bottom=4)
+                )
+            
+            def create_tool_item(tool):
+                """Create a tool item display"""
+                return ft.Container(
+                    content=ft.Row([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.BUILD, color=WHITE, size=16),
+                            bgcolor=BLUE,
+                            width=32,
+                            height=32,
+                            border_radius=6,
+                            alignment=ft.alignment.center
+                        ),
+                        ft.Column([
+                            ft.Text(
+                                tool.get('name', tool.get('tool_name', 'Unknown Tool')),
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color=BLACK
+                            ),
+                            ft.Text(
+                                tool.get('type', tool.get('category', 'Equipment')),
+                                size=10,
+                                color=ft.Colors.GREY_600
+                            )
+                        ], spacing=2, expand=True),
+                        ft.Container(
+                            content=ft.Text(
+                                tool.get('condition', tool.get('status', 'Good')),
+                                color=WHITE,
+                                size=8,
+                                weight=ft.FontWeight.BOLD
+                            ),
+                            bgcolor=GREEN if tool.get('condition', tool.get('status', 'Good')) in ['Good', 'Available'] else 
+                                    (ORANGE if tool.get('condition', tool.get('status', 'Good')) == 'Fair' else RED),
+                            padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                            border_radius=8
+                        )
+                    ], spacing=8),
+                    bgcolor=ft.Colors.GREY_50,
+                    padding=8,
+                    border_radius=6,
+                    margin=ft.margin.only(bottom=4)
+                )
+            
+            def create_vehicle_item(vehicle):
+                """Create a vehicle item display"""
+                return ft.Container(
+                    content=ft.Row([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.DIRECTIONS_CAR, color=WHITE, size=16),
+                            bgcolor=ORANGE,
+                            width=32,
+                            height=32,
+                            border_radius=6,
+                            alignment=ft.alignment.center
+                        ),
+                        ft.Column([
+                            ft.Text(
+                                vehicle.get('name', vehicle.get('model', 'Unknown Vehicle')),
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color=BLACK
+                            ),
+                            ft.Text(
+                                f"Plate: {vehicle.get('license_plate', vehicle.get('plate_number', vehicle.get('plate', 'N/A')))}",
+                                size=10,
+                                color=ft.Colors.GREY_600
+                            )
+                        ], spacing=2, expand=True),
+                        ft.Container(
+                            content=ft.Text(
+                                vehicle.get('status', 'Available'),
+                                color=WHITE,
+                                size=8,
+                                weight=ft.FontWeight.BOLD
+                            ),
+                            bgcolor=GREEN if vehicle.get('status', 'Available') == 'Available' else 
+                                    (ORANGE if vehicle.get('status') == 'In Use' else RED),
+                            padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                            border_radius=8
+                        )
+                    ], spacing=8),
+                    bgcolor=ft.Colors.GREY_50,
+                    padding=8,
+                    border_radius=6,
+                    margin=ft.margin.only(bottom=4)
+                )
+            
+            # Determine available actions based on status
+            current_status = mission.get('status', 'PENDING')
+            action_buttons = []
+            
+            if current_status == 'PENDING':
+                action_buttons.append(
+                    ft.ElevatedButton(
+                        "Start Mission",
+                        icon=ft.Icons.PLAY_ARROW,
+                        on_click=update_status_action('IN_PROGRESS'),
+                        bgcolor=GOLD,
+                        color=BLACK
+                    )
+                )
+            elif current_status == 'IN_PROGRESS':
+                action_buttons.extend([
+                    ft.ElevatedButton(
+                        "Complete",
+                        icon=ft.Icons.CHECK_CIRCLE,
+                        on_click=update_status_action('COMPLETED'),
+                        bgcolor=GREEN,
+                        color=WHITE
+                    ),
+                    ft.ElevatedButton(
+                        "Pause",
+                        icon=ft.Icons.PAUSE,
+                        on_click=update_status_action('PENDING'),
+                        bgcolor=ORANGE,
+                        color=WHITE
+                    )
+                ])
+            
+            action_buttons.append(
+                ft.ElevatedButton(
+                    "Add Note",
+                    icon=ft.Icons.NOTE_ADD,
+                    on_click=add_note_action,
+                    style=ft.ButtonStyle(bgcolor=BLUE, color=WHITE)
+                )
+            )
+            
+            # Create scrollable content with tabs for better organization
+            def create_basic_info_tab():
+                return ft.Column([
+                    ft.Row([
+                        ft.Icon(ft.Icons.ASSIGNMENT, size=48, color=GOLD),
+                        ft.Column([
+                            ft.Text(f"ID: #{mission.get('id', 'Unknown')[:8]}", size=14),
+                            ft.Text(f"Status: {mission.get('status', 'Unknown')}", size=12, color=get_status_color(mission.get('status', 'Unknown'))),
+                            ft.Text(f"Priority: {mission.get('priority', 'Unknown')}", size=12, color=get_priority_color(mission.get('priority', 'Unknown')))
+                        ], spacing=4, expand=True)
+                    ]),
+                    ft.Divider(),
+                    ft.Column([
+                        ft.Text("Description:", weight=ft.FontWeight.BOLD, size=12),
+                        ft.Text(mission.get("description", "No description"), size=11, color=ft.Colors.GREY_700),
+                        ft.Container(height=8),
+                        ft.Row([
+                            ft.Text("Location:", weight=ft.FontWeight.BOLD, size=12),
+                            ft.Text(mission.get("location", "No location"), size=11)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Row([
+                            ft.Text("Assigned To:", weight=ft.FontWeight.BOLD, size=12),
+                            ft.Text(mission.get('assigned_user', {}).get('full_name', 'Not assigned'), size=11)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Row([
+                            ft.Text("Due Date:", weight=ft.FontWeight.BOLD, size=12),
+                            ft.Text(format_date_short(mission.get("due_date", "")), size=11)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Row([
+                            ft.Text("Duration:", weight=ft.FontWeight.BOLD, size=12),
+                            ft.Text(f"{mission.get('estimated_duration', 0)} hours" if mission.get('estimated_duration') else "Not specified", size=11)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Row([
+                            ft.Text("Created:", weight=ft.FontWeight.BOLD, size=12),
+                            ft.Text(format_date_short(mission.get("created_at", "")), size=11)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ], spacing=6)
+                ], spacing=8)
+            
+            def create_resources_tab():
+                # Extract personnel data - combine assigned user and team leader
+                personnel = []
+                if mission.get('assigned_user'):
+                    personnel.append({
+                        'name': mission['assigned_user'].get('full_name', 'Unknown'),
+                        'role': 'Assigned Person',
+                        'status': 'Assigned'
+                    })
+                if mission.get('team_leader'):
+                    personnel.append({
+                        'name': mission['team_leader'].get('full_name', 'Unknown'),
+                        'role': 'Team Leader', 
+                        'status': 'Leading'
+                    })
+                
+                # Extract vehicle data - convert single vehicle to array
+                vehicles = []
+                if mission.get('vehicle'):
+                    vehicles.append({
+                        'name': mission['vehicle'].get('model', 'Unknown Vehicle'),
+                        'license_plate': mission['vehicle'].get('plate_number', 'N/A'),
+                        'status': 'Assigned'
+                    })
+
+                # Tools - your database doesn't seem to have tools yet
+                tools = mission.get('tools', [])  # This will be empty for now
+                
+                return ft.Column([
+                    # Personnel Section
+                    ft.Text("👥 Personnel", weight=ft.FontWeight.BOLD, size=14, color=GOLD),
+                    ft.Container(
+                        content=ft.Column([
+                            create_personnel_item(person) for person in personnel
+                        ] if personnel else [
+                            ft.Container(
+                                content=ft.Text("No personnel assigned", color=ft.Colors.GREY_500, size=12),
+                                alignment=ft.alignment.center,
+                                height=40
+                            )
+                        ], spacing=4),
+                        height=120,
+                        expand=True
+                    ),
+                    
+                    ft.Container(height=8),
+                    
+                    # Tools Section
+                    ft.Text("🔧 Tools & Equipment", weight=ft.FontWeight.BOLD, size=14, color=BLUE),
+                    ft.Container(
+                        content=ft.Column([
+                            create_tool_item(tool) for tool in tools
+                        ] if tools else [
+                            ft.Container(
+                                content=ft.Text("No tools assigned", color=ft.Colors.GREY_500, size=12),
+                                alignment=ft.alignment.center,
+                                height=40
+                            )
+                        ], spacing=4),
+                        height=120,
+                        expand=True
+                    ),
+                    
+                    ft.Container(height=8),
+                    
+                    # Vehicles Section
+                    ft.Text("🚗 Vehicles", weight=ft.FontWeight.BOLD, size=14, color=ORANGE),
+                    ft.Container(
+                        content=ft.Column([
+                            create_vehicle_item(vehicle) for vehicle in vehicles
+                        ] if vehicles else [
+                            ft.Container(
+                                content=ft.Text("No vehicles assigned", color=ft.Colors.GREY_500, size=12),
+                                alignment=ft.alignment.center,
+                                height=40
+                            )
+                        ], spacing=4),
+                        height=120,
+                        expand=True
+                    )
+                ], spacing=8, scroll=ft.ScrollMode.AUTO)
+            
+            # Create tabs
+            tabs = ft.Tabs(
+                selected_index=0,
+                animation_duration=300,
+                tabs=[
+                    ft.Tab(
+                        text="Details",
+                        icon=ft.Icons.INFO,
+                        content=ft.Container(
+                            content=create_basic_info_tab(),
+                            padding=ft.padding.all(8)
+                        )
+                    ),
+                    ft.Tab(
+                        text="Resources",
+                        icon=ft.Icons.INVENTORY,
+                        content=ft.Container(
+                            content=create_resources_tab(),
+                            padding=ft.padding.all(8)
+                        )
+                    )
+                ]
+            )
+            
+            dialog = ft.AlertDialog(
+                title=ft.Text(f"{mission.get('title', 'Unknown')}", weight=ft.FontWeight.BOLD, size=16),
+                content=ft.Container(
+                    content=tabs,
+                    width=450,
+                    height=400
+                ),
+                actions=[
+                    ft.TextButton("Close", on_click=close_dialog),
+                    *action_buttons
+                ],
+                actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            )
+            
+            page.open(dialog)
+            dialog.open = True
+            page.update()
+        
+        # State variables for filtering and searching
+        current_filter = "All"
+        search_query = ""
+        missions_data = []
+        
+        def refresh_missions_data():
+            """Refresh missions data from database"""
+            nonlocal missions_data
+            try:
+                missions_data = get_all_missions_with_details()
+                return True
+            except Exception as e:
+                print(f"Error loading missions: {e}")
+                show_snackbar(f"Error loading missions: {str(e)}", RED)
+                return False
+        
+        def filter_missions(missions, filter_status, search_text):
+            """Filter missions based on status and search query"""
+            filtered_missions = missions.copy()
+            
+            # Filter by status
+            if filter_status != "All":
+                status_map = {
+                    "Pending": "PENDING",
+                    "In Progress": "IN_PROGRESS", 
+                    "Completed": "COMPLETED",
+                    "Cancelled": "CANCELLED"
+                }
+                filtered_missions = [mission for mission in filtered_missions if mission.get("status") == status_map.get(filter_status, filter_status)]
+            
+            # Filter by search query
+            if search_text:
+                search_lower = search_text.lower()
+                filtered_missions = [
+                    mission for mission in filtered_missions 
+                    if (search_lower in mission.get("title", "").lower() or 
+                        search_lower in mission.get("location", "").lower() or 
+                        search_lower in mission.get("description", "").lower() or
+                        search_lower in str(mission.get("id", "")).lower() or
+                        search_lower in mission.get('assigned_user', {}).get('full_name', '').lower())
+                ]
+            
+            return filtered_missions
+        
+        def create_filter_button(text, is_active=False, on_click=None):
+            """Create a filter button with active/inactive states"""
+            return ft.Container(
+                content=ft.Text(
+                    text, 
+                    color=BLACK if is_active else ft.Colors.GREY_600,
+                    weight=ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL
+                ),
+                bgcolor=GOLD if is_active else WHITE,
+                padding=ft.padding.symmetric(horizontal=16, vertical=8),
+                border_radius=20,
+                ink=True,
+                on_click=on_click
+            )
+        
+        # Form field references
+        search_field = ft.Ref[ft.TextField]()
+        mission_list_ref = ft.Ref[ft.Column]()
+        filter_buttons_ref = ft.Ref[ft.Row]()
+        
+        def update_mission_list():
+            """Update the mission list based on current filter and search"""
+            filtered_missions = filter_missions(missions_data, current_filter, search_query)
+            
+            if not filtered_missions:
+                mission_list_ref.current.controls = [
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Icon(ft.Icons.ASSIGNMENT, color=GRAY, size=64),
+                            ft.Text("No missions found", color=GRAY, size=16),
+                            ft.Text("Try adjusting your filters or search query", 
+                                color=GRAY, size=12, text_align=ft.TextAlign.CENTER)
+                        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        alignment=ft.alignment.center,
+                        height=200
+                    )
+                ]
+            else:
+                mission_list_ref.current.controls = [create_mission_card(mission) for mission in filtered_missions]
+            
+            mission_list_ref.current.update()
+        
+        def on_filter_click(filter_name):
+            """Handle filter button clicks"""
+            nonlocal current_filter
+            current_filter = filter_name
+            
+            # Update filter buttons appearance
+            filter_buttons_ref.current.controls = [
+                create_filter_button("All", current_filter == "All", lambda e: on_filter_click("All")),
+                create_filter_button("Pending", current_filter == "Pending", lambda e: on_filter_click("Pending")),
+                create_filter_button("In Progress", current_filter == "In Progress", lambda e: on_filter_click("In Progress")),
+                create_filter_button("Completed", current_filter == "Completed", lambda e: on_filter_click("Completed")),
+                create_filter_button("Cancelled", current_filter == "Cancelled", lambda e: on_filter_click("Cancelled"))
+            ]
+            filter_buttons_ref.current.update()
+            
+            update_mission_list()
+        
+        def on_search_change(e):
+            """Handle search input changes"""
+            nonlocal search_query
+            search_query = e.control.value
+            update_mission_list()
+        
+        def refresh_missions_and_update():
+            """Refresh mission data and update the view"""
+            if refresh_missions_data():
+                update_mission_list()
+                show_snackbar("Missions refreshed", GREEN)
+            else:
+                show_snackbar("Failed to refresh missions", RED)
+        
+        def show_snackbar(message: str, bgcolor_color):
+            """Show snackbar message"""
+            snackbar = ft.SnackBar(
+                content=ft.Text(message, color=WHITE),
+                bgcolor=bgcolor_color,
+                duration=3000
+            )
+            page.overlay.append(snackbar)
+            snackbar.open = True 
+            page.update()
+        
+        # Load initial data
+        refresh_missions_data()
+        
+        # Initialize form fields
+        search_field.current = ft.TextField(
+            hint_text="Search by title, location, description, ID, or assigned user...",
+            prefix_icon=ft.Icons.SEARCH,
+            border_radius=25,
+            filled=True,
+            bgcolor=WHITE,
+            border_color=ft.Colors.TRANSPARENT,
+            focused_border_color=GOLD,
+            on_change=on_search_change
+        )
+        
+        # Filter buttons
+        filter_buttons_ref.current = ft.Row([
+            create_filter_button("All", True, lambda e: on_filter_click("All")),
+            create_filter_button("Pending", False, lambda e: on_filter_click("Pending")),
+            create_filter_button("In Progress", False, lambda e: on_filter_click("In Progress")),
+            create_filter_button("Completed", False, lambda e: on_filter_click("Completed")),
+            create_filter_button("Cancelled", False, lambda e: on_filter_click("Cancelled"))
+        ], spacing=8, scroll=ft.ScrollMode.AUTO)
+        
+        # Mission list (initially showing all missions)
+        mission_list_ref.current = ft.Column([
+            create_mission_card(mission) for mission in missions_data
+        ], spacing=0, scroll=ft.ScrollMode.AUTO, expand=True)
+        
+        # Statistics section for missions
+        def create_mission_stats():
+            if not missions_data:
+                return ft.Container()
+            
+            try:
+                stats = get_mission_stats()
+                total_count = stats.get('total', 0)
+                pending_count = stats.get('pending', 0)
+                in_progress_count = stats.get('in_progress', 0)
+                completed_count = stats.get('completed', 0)
+                cancelled_count = stats.get('cancelled', 0)
+                
+                return ft.Container(
+                    content=ft.Row([
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(str(total_count), size=20, weight=ft.FontWeight.BOLD, color=BLACK),
+                                ft.Text("Total", size=12, color=ft.Colors.GREY_600)
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            bgcolor=ft.Colors.BLUE_50,
+                            padding=12,
+                            border_radius=8,
+                            expand=True
+                        ),
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(str(pending_count), size=20, weight=ft.FontWeight.BOLD, color=ORANGE),
+                                ft.Text("Pending", size=12, color=ft.Colors.GREY_600)
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            bgcolor=ft.Colors.ORANGE_50,
+                            padding=12,
+                            border_radius=8,
+                            expand=True
+                        ),
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(str(in_progress_count), size=20, weight=ft.FontWeight.BOLD, color=GOLD),
+                                ft.Text("Active", size=12, color=ft.Colors.GREY_600)
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            bgcolor=ft.Colors.AMBER_50,
+                            padding=12,
+                            border_radius=8,
+                            expand=True
+                        ),
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(str(completed_count), size=20, weight=ft.FontWeight.BOLD, color=GREEN),
+                                ft.Text("Completed", size=12, color=ft.Colors.GREY_600)
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            bgcolor=ft.Colors.GREEN_50,
+                            padding=12,
+                            border_radius=8,
+                            expand=True
+                        )
+                    ], spacing=8),
+                    margin=ft.margin.only(bottom=16)
+                )
+            except Exception as e:
+                return ft.Container(
+                    content=ft.Text(f"Error loading stats: {str(e)}", color=RED),
+                    padding=12
+                )
+        
+        # Main content
+        content = ft.Column([
+            ft.Container(
+                content=ft.Column([
+                    create_mission_stats(),
+                    search_field.current,
+                    filter_buttons_ref.current,
+                    mission_list_ref.current
+                ], spacing=16),
+                padding=16,
+                expand=True
+            )
+        ], spacing=0, expand=True)
+        
+        return ft.View(
+            route="/missions",
+            appbar=ft.AppBar(
+                title=ft.Text("Mission Management", color=BLACK, size=20, weight=ft.FontWeight.BOLD),
+                center_title=True,
+                bgcolor=WHITE,
+                leading=ft.IconButton(
+                    ft.Icons.ARROW_BACK,
+                    on_click=lambda e: page.go("/dashboard"),
+                    icon_color=BLACK
+                ),
+                actions=[
+                    ft.IconButton(
+                        ft.Icons.ADD,
+                        tooltip="Add Mission",
+                        on_click=lambda e: page.go("/add-mission"),
+                        icon_color=BLACK
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.REFRESH, 
+                        tooltip="Refresh Missions",
+                        on_click=lambda e: refresh_missions_and_update(),
+                        icon_color=BLACK
+                    )
+                ],
+                elevation=0
+            ),
+            controls=[
+                ft.Container(
+                    content=content,
+                    expand=True,
+                )
+            ]
+        )
     # ========== UTILITY FUNCTIONS ==========
     
     def refresh_all_data():
@@ -3947,20 +5457,53 @@ def dashboard_router(page: ft.Page):
     # ========== ROUTE HANDLING ==========
     
     def route_change(e):
-        """Handle route changes"""        
+        """Handle route changes"""
         # Clear the page
         page.views.clear()
         
         # Check if user is logged in for protected routes
         protected_routes = ["/dashboard", "/employees", "/tools", "/settings", "/add-mission", "/adduser", "/cars"]
         
-        if page.route in protected_routes and not current_user:
+        # Add dynamic protected routes
+        if (page.route.startswith("/edit_employee") or 
+            page.route.startswith("/view_employee") or
+            page.route in protected_routes) and not current_user:
             # Redirect to login if not authenticated
             page.views.append(login_view())
             page.update()
             return
         
-        # Define routes
+        # Handle dynamic routes first
+        if page.route.startswith("/edit_employee"):
+            # Extract employee ID from route
+            route_parts = page.route.split("/")
+            if len(route_parts) >= 3:
+                employee_id = route_parts[2]
+                view = edit_employees(employee_id)
+            else:
+                # No employee ID provided - create new employee
+                view = edit_employees()
+            page.views.append(view)
+            page.update()
+            return
+        
+        if page.route.startswith("/view_employee"):
+            # Extract employee ID from route
+            route_parts = page.route.split("/")
+            if len(route_parts) >= 3:
+                employee_id = route_parts[2]
+                view = view_employee_detail(employee_id)
+                page.views.append(view)
+                page.update()
+                return
+            else:
+                # No employee ID provided - redirect to employees list
+                page.route = "/employees"
+                page.views.append(employees_view())
+                page.update()
+                return
+        
+        # Define static routes
         routes = {
             "/": dashboard_view if current_user else login_view,
             "/dashboard": dashboard_view,
@@ -3971,8 +5514,10 @@ def dashboard_router(page: ft.Page):
             "/adduser": add_user_view,
             "/login": login_view,
             "/cars": view_all_car,
-            "/add-tool":add_tool,
-            "/add-vehicle": add_vehicle
+            "/add-tool": add_tool,
+            "/add-vehicle": add_vehicle,
+            "/missions": view_missions,
+            "/edit_employee": lambda: edit_employees(),  # For creating new employee
         }
         
         # Get the route handler

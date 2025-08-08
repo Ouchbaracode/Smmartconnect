@@ -21,27 +21,7 @@ try:
             # Use the Service.json file
             cred = credentials.Certificate(service_account_path)
             print(f"Using Firebase credentials from: {service_account_path}")
-        else:
-            # Fallback to environment variables if Service.json doesn't exist
-            firebase_config = {
-                "type": "service_account",
-                "project_id": os.getenv("FIREBASE_PROJECT_ID", "your-project-id"),
-                "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-                "private_key": os.getenv("FIREBASE_PRIVATE_KEY", "").replace('\\n', '\n'),
-                "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
-                "client_id": os.getenv("FIREBASE_CLIENT_ID"),
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_CERT_URL")
-            }
-            
-            # Check if we have the required environment variables
-            if not firebase_config["project_id"] or firebase_config["project_id"] == "your-project-id":
-                raise Exception("No Service.json file found and FIREBASE_PROJECT_ID not set in environment variables")
-            
-            cred = credentials.Certificate(firebase_config)
-            print("Using Firebase credentials from environment variables")
+
         
         firebase_admin.initialize_app(cred)
         print("Firebase initialized successfully")
@@ -73,6 +53,7 @@ class DatabaseManager:
         self.VEHICLE_ASSIGNMENTS_COLLECTION = 'vehicle_assignments'
         self.MISSION_REPORTS_COLLECTION = 'mission_reports'
         self.NOTIFICATIONS_COLLECTION = 'notifications'
+        self.MISSION_LOGS_COLLECTION='mission_logs'
     
     # ========== UTILITY FUNCTIONS ==========
     
@@ -426,51 +407,7 @@ class DatabaseManager:
             return False
         except Exception as e:
             print(f"Create mission error: {e}")
-            return False
-    
-    def get_all_missions(self) -> List[Dict]:
-        """Get all missions with related data"""
-        try:
-            if not self.db:
-                return []
-                
-            missions = []
-            missions_ref = self.db.collection(self.MISSIONS_COLLECTION)
-            
-            for doc in missions_ref.stream():
-                mission_data = self.to_dict(doc)
-                if mission_data:
-                    # Get assigned user info
-                    if mission_data.get('assigned_person_id'):
-                        user_doc = self.db.collection(self.USERS_COLLECTION).document(mission_data['assigned_person_id']).get()
-                        if user_doc.exists:
-                            user_data = user_doc.to_dict()
-                            mission_data['assigned_user'] = {'full_name': user_data.get('full_name')}
-                    
-                    # Get team leader info
-                    if mission_data.get('team_leader_id'):
-                        leader_doc = self.db.collection(self.USERS_COLLECTION).document(mission_data['team_leader_id']).get()
-                        if leader_doc.exists:
-                            leader_data = leader_doc.to_dict()
-                            mission_data['team_leader'] = {'full_name': leader_data.get('full_name')}
-                    
-                    # Get vehicle info
-                    if mission_data.get('vehicle_id'):
-                        vehicle_doc = self.db.collection(self.VEHICLES_COLLECTION).document(mission_data['vehicle_id']).get()
-                        if vehicle_doc.exists:
-                            vehicle_data = vehicle_doc.to_dict()
-                            mission_data['vehicle'] = {
-                                'model': vehicle_data.get('model'),
-                                'plate_number': vehicle_data.get('plate_number')
-                            }
-                    
-                    missions.append(mission_data)
-            
-            return missions
-        except Exception as e:
-            print(f"Get missions error: {e}")
-            return []
-    
+            return False    
     def get_missions_by_user(self, user_id: str) -> List[Dict]:
         """Get missions assigned to specific user"""
         try:
@@ -714,6 +651,16 @@ def get_all_vehicles() -> List[Dict]:
 def get_all_tools() -> List[Dict]:
     return db.get_all_tools()
 
+def get_employee_by_id(employee_id: str) -> Optional[Dict]:
+    return db.get_employee_by_id(employee_id)
+
+def update_employee(employee_id: str, update_data: Dict) -> bool:
+    return db.update_employee(employee_id, update_data)
+
+def get_all_departments() -> List[Dict]:
+    return db.get_all_departments
+
+
 def create_mission(mission_data: Dict) -> bool:
     return db.create_mission(mission_data)
 
@@ -731,3 +678,589 @@ def create_vehicle(vehicle_data: Dict) -> bool:
     
 def create_tool(tool_data: Dict) -> bool:
     db.create_tool(tool_data) 
+    
+    
+# Mission Function
+
+def get_mission_by_id(mission_id: str) -> Optional[Dict]:
+    """Get mission by ID with related data"""
+    try:
+        if not db.db:
+            return None
+            
+        doc = db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).get()
+        if not doc.exists:
+            return None
+            
+        mission_data = db.to_dict(doc)
+        
+        # Get assigned user info
+        if mission_data.get('assigned_person_id'):
+            user_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['assigned_person_id']).get()
+            if user_doc.exists:
+                user_data = user_doc.to_dict()
+                mission_data['assigned_user'] = {'full_name': user_data.get('full_name')}
+        
+        # Get team leader info
+        if mission_data.get('team_leader_id'):
+            leader_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['team_leader_id']).get()
+            if leader_doc.exists:
+                leader_data = leader_doc.to_dict()
+                mission_data['team_leader'] = {'full_name': leader_data.get('full_name')}
+        
+        # Get vehicle info
+        if mission_data.get('vehicle_id'):
+            vehicle_doc = db.db.collection(db.VEHICLES_COLLECTION).document(mission_data['vehicle_id']).get()
+            if vehicle_doc.exists:
+                vehicle_data = vehicle_doc.to_dict()
+                mission_data['vehicle'] = {
+                    'model': vehicle_data.get('model'),
+                    'plate_number': vehicle_data.get('plate_number')
+                }
+        
+        return mission_data
+    except Exception as e:
+        print(f"Get mission by ID error: {e}")
+        return None
+
+def get_all_missions_with_details() -> List[Dict]:
+    """Get all missions with complete details"""
+    try:
+        if not db.db:
+            return []
+            
+        missions = []
+        missions_ref = db.db.collection(db.MISSIONS_COLLECTION).order_by('created_at', direction=firestore.Query.DESCENDING)
+        for doc in missions_ref.stream():
+            mission_data = db.to_dict(doc)
+            if mission_data:
+                # Get assigned user info
+                if mission_data.get('assigned_person_id'):
+                    user_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['assigned_person_id']).get()
+                    if user_doc.exists:
+                        user_data = user_doc.to_dict()
+                        mission_data['assigned_user'] = {'full_name': user_data.get('full_name')}
+                
+                # Get team leader info
+                if mission_data.get('team_leader_id'):
+                    leader_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['team_leader_id']).get()
+                    if leader_doc.exists:
+                        leader_data = leader_doc.to_dict()
+                        mission_data['team_leader'] = {'full_name': leader_data.get('full_name')}
+                
+                # Get vehicle info
+                if mission_data.get('vehicle_id'):
+                    vehicle_doc = db.db.collection(db.VEHICLES_COLLECTION).document(mission_data['vehicle_id']).get()
+                    if vehicle_doc.exists:
+                        vehicle_data = vehicle_doc.to_dict()
+                        mission_data['vehicle'] = {
+                            'model': vehicle_data.get('model'),
+                            'plate_number': vehicle_data.get('plate_number')
+                        }
+                if mission_data.get('required_tools'):
+                    mission_data['tools'] = []
+                    for tool_id in mission_data['required_tools']:
+                        tool_doc = db.db.collection(db.TOOLS_COLLECTION).document(tool_id).get()
+                        if tool_doc.exists:
+                            tool_data = tool_doc.to_dict()
+                            mission_data['tools'].append({
+                                'name': tool_data.get('name'),
+                                'type': tool_data.get('category'),
+                                'condition': tool_data.get('condition'),
+                            })
+                
+                missions.append(mission_data)
+        
+        return missions
+    except Exception as e:
+        print(f"Get all missions error: {e}")
+        return []
+
+def get_mission_tools(mission_id: str) -> List[Dict]:
+    """Get tools assigned to mission"""
+    try:
+        if not db.db:
+            return []
+            
+        tools = []
+        assignments_ref = db.db.collection(db.TOOL_ASSIGNMENTS_COLLECTION).where('mission_id', '==', mission_id)
+        
+        for doc in assignments_ref.stream():
+            assignment_data = db.to_dict(doc)
+            if assignment_data:
+                # Get tool info
+                tool_doc = db.db.collection(db.TOOLS_COLLECTION).document(assignment_data['tool_id']).get()
+                if tool_doc.exists:
+                    tool_data = tool_doc.to_dict()
+                    tools.append({
+                        'name': tool_data.get('name'),
+                        'quantity': assignment_data.get('quantity', 0),
+                        'status': assignment_data.get('status', 'ASSIGNED')
+                    })
+        
+        return tools
+    except Exception as e:
+        print(f"Get mission tools error: {e}")
+        return []
+
+def get_mission_activity_log(mission_id: str) -> List[Dict]:
+    """Get activity log for mission"""
+    try:
+        if not db.db:
+            return []
+            
+        activities = []
+        activities_ref = db.db.collection(db.ACTIVITY_LOGS_COLLECTION).where('activity_data.mission_id', '==', mission_id).order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10)
+        
+        for doc in activities_ref.stream():
+            activity_data = db.to_dict(doc)
+            if activity_data:
+                # Get user info
+                if activity_data.get('user_id'):
+                    user_doc = db.db.collection(db.USERS_COLLECTION).document(activity_data['user_id']).get()
+                    if user_doc.exists:
+                        user_data = user_doc.to_dict()
+                        activity_data['user'] = {'full_name': user_data.get('full_name')}
+                
+                activities.append(activity_data)
+        
+        return activities
+    except Exception as e:
+        print(f"Get mission activity log error: {e}")
+        return []
+
+def get_missions_by_status(status: str) -> List[Dict]:
+    """Get missions filtered by status"""
+    try:
+        if not db.db:
+            return []
+            
+        missions = []
+        missions_ref = db.db.collection(db.MISSIONS_COLLECTION).where('status', '==', status).order_by('created_at', direction=firestore.Query.DESCENDING)
+        
+        for doc in missions_ref.stream():
+            mission_data = db.to_dict(doc)
+            if mission_data:
+                # Get basic user info
+                if mission_data.get('assigned_person_id'):
+                    user_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['assigned_person_id']).get()
+                    if user_doc.exists:
+                        user_data = user_doc.to_dict()
+                        mission_data['assigned_user'] = {'full_name': user_data.get('full_name')}
+                
+                missions.append(mission_data)
+        
+        return missions
+    except Exception as e:
+        print(f"Get missions by status error: {e}")
+        return []
+
+def get_missions_by_user(user_id: str) -> List[Dict]:
+    """Get missions assigned to specific user"""
+    try:
+        if not db.db:
+            return []
+            
+        missions = []
+        missions_ref = db.db.collection(db.MISSIONS_COLLECTION).where('assigned_person_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING)
+        
+        for doc in missions_ref.stream():
+            mission_data = db.to_dict(doc)
+            if mission_data:
+                # Get user info
+                user_doc = db.db.collection(db.USERS_COLLECTION).document(user_id).get()
+                if user_doc.exists:
+                    user_data = user_doc.to_dict()
+                    mission_data['assigned_user'] = {'full_name': user_data.get('full_name')}
+                
+                # Get vehicle info if available
+                if mission_data.get('vehicle_id'):
+                    vehicle_doc = db.db.collection(db.VEHICLES_COLLECTION).document(mission_data['vehicle_id']).get()
+                    if vehicle_doc.exists:
+                        vehicle_data = vehicle_doc.to_dict()
+                        mission_data['vehicle'] = {
+                            'model': vehicle_data.get('model'),
+                            'plate_number': vehicle_data.get('plate_number')
+                        }
+                
+                missions.append(mission_data)
+        
+        return missions
+    except Exception as e:
+        print(f"Get user missions error: {e}")
+        return []
+
+def update_mission(mission_id: str, update_data: Dict) -> bool:
+    """Update mission data"""
+    try:
+        if not db.db:
+            return False
+            
+        update_data['updated_at'] = datetime.now().isoformat()
+        
+        db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).update(update_data)
+        
+        # Log activity
+        db.log_activity('mission_updated', {
+            'mission_id': mission_id,
+            'updated_fields': list(update_data.keys())
+        })
+        
+        return True
+    except Exception as e:
+        print(f"Update mission error: {e}")
+        return False
+
+def delete_mission(mission_id: str) -> bool:
+    """Delete mission (soft delete by setting status to CANCELLED)"""
+    try:
+        if not db.db:
+            return False
+            
+        db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).update({
+            'status': 'CANCELLED',
+            'updated_at': datetime.now().isoformat()
+        })
+        
+        # Log activity
+        db.log_activity('mission_deleted', {
+            'mission_id': mission_id
+        })
+        
+        return True
+    except Exception as e:
+        print(f"Delete mission error: {e}")
+        return False
+
+def get_mission_stats() -> Dict:
+    """Get mission statistics"""
+    try:
+        if not db.db:
+            return {}
+            
+        missions = list(db.db.collection(db.MISSIONS_COLLECTION).stream())
+        
+        total = len(missions)
+        pending = len([m for m in missions if m.to_dict().get('status') == 'PENDING'])
+        in_progress = len([m for m in missions if m.to_dict().get('status') == 'IN_PROGRESS'])
+        completed = len([m for m in missions if m.to_dict().get('status') == 'COMPLETED'])
+        cancelled = len([m for m in missions if m.to_dict().get('status') == 'CANCELLED'])
+        
+        return {
+            'total': total,
+            'pending': pending,
+            'in_progress': in_progress,
+            'completed': completed,
+            'cancelled': cancelled
+        }
+    except Exception as e:
+        print(f"Get mission stats error: {e}")
+        return {}
+
+def search_missions(query: str) -> List[Dict]:
+    """Search missions by title, location, or description"""
+    try:
+        if not db.db or not query:
+            return []
+            
+        missions = []
+        query_lower = query.lower()
+        
+        # Get all missions and filter in Python (Firestore has limited text search)
+        missions_ref = db.db.collection(db.MISSIONS_COLLECTION)
+        
+        for doc in missions_ref.stream():
+            mission_data = db.to_dict(doc)
+            if mission_data:
+                # Check if query matches title, location, or description
+                title = mission_data.get('title', '').lower()
+                location = mission_data.get('location', '').lower()
+                description = mission_data.get('description', '').lower()
+                
+                if (query_lower in title or 
+                    query_lower in location or 
+                    query_lower in description):
+                    
+                    # Get assigned user info
+                    if mission_data.get('assigned_person_id'):
+                        user_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['assigned_person_id']).get()
+                        if user_doc.exists:
+                            user_data = user_doc.to_dict()
+                            mission_data['assigned_user'] = {'full_name': user_data.get('full_name')}
+                    
+                    missions.append(mission_data)
+        
+        return missions
+    except Exception as e:
+        print(f"Search missions error: {e}")
+        return []
+    
+def add_mission_log(mission_id: str, action: str, user_name: str, notes: str = None) -> bool:
+    """Add a log entry to a specific mission."""
+    try:
+        if not db.db:
+            return False
+
+        log_data = {
+            'action': action,
+            'user_name': user_name,
+            'created_at': datetime.now().isoformat()
+        }
+        if notes:
+            log_data['notes'] = notes
+
+        # Add the log to the 'mission_logs' subcollection of the mission
+        db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).collection(db.MISSION_LOGS_COLLECTION).add(log_data)
+
+        return True
+    except Exception as e:
+        print(f"Add mission log error: {e}")
+        return False
+
+def get_mission_logs(mission_id: str) -> List[Dict]:
+    """Get all log entries for a specific mission."""
+    try:
+        if not db.db:
+            return []
+
+        logs = []
+        # Get logs from the 'mission_logs' subcollection, ordered by creation date
+        logs_ref = db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).collection(db.MISSION_LOGS_COLLECTION).order_by('created_at', direction=firestore.Query.DESCENDING)
+
+        for doc in logs_ref.stream():
+            log_data = db.to_dict(doc)
+            if log_data:
+                logs.append(log_data)
+
+        return logs
+    except Exception as e:
+        print(f"Get mission logs error: {e}")
+        return []
+# Add these functions to your db.py file
+
+def get_mission_personnel(mission_id: str) -> List[Dict]:
+    """Get personnel assigned to mission"""
+    try:
+        if not db.db:
+            return []
+            
+        # First get the mission to see if it has personnel_ids
+        mission_doc = db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).get()
+        if not mission_doc.exists:
+            return []
+            
+        mission_data = mission_doc.to_dict()
+        personnel_ids = mission_data.get('personnel_ids', [])
+        
+        # If no personnel_ids, check if there's an assigned_person_id
+        if not personnel_ids and mission_data.get('assigned_person_id'):
+            personnel_ids = [mission_data['assigned_person_id']]
+        
+        personnel = []
+        for person_id in personnel_ids:
+            user_doc = db.db.collection(db.USERS_COLLECTION).document(person_id).get()
+            if user_doc.exists:
+                user_data = user_doc.to_dict()
+                personnel.append({
+                    'id': user_doc.id,
+                    'name': user_data.get('full_name', 'Unknown'),
+                    'role': user_data.get('role', 'Team Member'),
+                    'phone': user_data.get('phone', ''),
+                    'status': 'Available' if user_data.get('active', False) else 'Unavailable'
+                })
+        
+        return personnel
+    except Exception as e:
+        print(f"Get mission personnel error: {e}")
+        return []
+
+def get_mission_tools_detailed(mission_id: str) -> List[Dict]:
+    """Get detailed tools assigned to mission"""
+    try:
+        if not db.db:
+            return []
+            
+        tools = []
+        # Check tool assignments collection
+        assignments_ref = db.db.collection(db.TOOL_ASSIGNMENTS_COLLECTION).where('mission_id', '==', mission_id)
+        
+        for doc in assignments_ref.stream():
+            assignment_data = db.to_dict(doc)
+            if assignment_data:
+                # Get tool details
+                tool_doc = db.db.collection(db.TOOLS_COLLECTION).document(assignment_data['tool_id']).get()
+                if tool_doc.exists:
+                    tool_data = tool_doc.to_dict()
+                    tools.append({
+                        'id': tool_doc.id,
+                        'name': tool_data.get('name', 'Unknown Tool'),
+                        'type': tool_data.get('category', 'Equipment'),
+                        'condition': tool_data.get('condition', 'Good'),
+                        'quantity': assignment_data.get('quantity', 1),
+                        'status': assignment_data.get('status', 'Assigned')
+                    })
+        
+        return tools
+    except Exception as e:
+        print(f"Get mission tools error: {e}")
+        return []
+
+def get_mission_vehicles_detailed(mission_id: str) -> List[Dict]:
+    """Get detailed vehicles assigned to mission"""
+    try:
+        if not db.db:
+            return []
+            
+        vehicles = []
+        
+        # Check vehicle assignments collection
+        assignments_ref = db.db.collection(db.VEHICLE_ASSIGNMENTS_COLLECTION).where('mission_id', '==', mission_id)
+        
+        for doc in assignments_ref.stream():
+            assignment_data = db.to_dict(doc)
+            if assignment_data:
+                # Get vehicle details
+                vehicle_doc = db.db.collection(db.VEHICLES_COLLECTION).document(assignment_data['vehicle_id']).get()
+                if vehicle_doc.exists:
+                    vehicle_data = vehicle_doc.to_dict()
+                    vehicles.append({
+                        'id': vehicle_doc.id,
+                        'name': vehicle_data.get('name', f"{vehicle_data.get('make', '')} {vehicle_data.get('model', '')}".strip()),
+                        'make': vehicle_data.get('make', ''),
+                        'model': vehicle_data.get('model', ''),
+                        'license_plate': vehicle_data.get('plate_number', ''),
+                        'status': vehicle_data.get('status', 'Available')
+                    })
+        
+        # If no assignments found, check if mission has a direct vehicle_id
+        if not vehicles:
+            mission_doc = db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).get()
+            if mission_doc.exists:
+                mission_data = mission_doc.to_dict()
+                if mission_data.get('vehicle_id'):
+                    vehicle_doc = db.db.collection(db.VEHICLES_COLLECTION).document(mission_data['vehicle_id']).get()
+                    if vehicle_doc.exists:
+                        vehicle_data = vehicle_doc.to_dict()
+                        vehicles.append({
+                            'id': vehicle_doc.id,
+                            'name': vehicle_data.get('name', f"{vehicle_data.get('make', '')} {vehicle_data.get('model', '')}".strip()),
+                            'make': vehicle_data.get('make', ''),
+                            'model': vehicle_data.get('model', ''),
+                            'license_plate': vehicle_data.get('plate_number', ''),
+                            'status': vehicle_data.get('status', 'Available')
+                        })
+        
+        return vehicles
+    except Exception as e:
+        print(f"Get mission vehicles error: {e}")
+        return []
+
+# Update the existing get_mission_by_id function to include personnel, tools, and vehicles
+def get_mission_by_id_enhanced(mission_id: str) -> Optional[Dict]:
+    """Get mission by ID with complete details including personnel, tools, and vehicles"""
+    try:
+        if not db.db:
+            return None
+            
+        doc = db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).get()
+        if not doc.exists:
+            return None
+            
+        mission_data = db.to_dict(doc)
+        
+        # Get assigned user info
+        if mission_data.get('assigned_person_id'):
+            user_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['assigned_person_id']).get()
+            if user_doc.exists:
+                user_data = user_doc.to_dict()
+                mission_data['assigned_user'] = {'full_name': user_data.get('full_name')}
+        
+        # Get team leader info
+        if mission_data.get('team_leader_id'):
+            leader_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['team_leader_id']).get()
+            if leader_doc.exists:
+                leader_data = leader_doc.to_dict()
+                mission_data['team_leader'] = {'full_name': leader_data.get('full_name')}
+        
+        # Get personnel, tools, and vehicles
+        mission_data['personnel'] = get_mission_personnel(mission_id)
+        mission_data['tools'] = get_mission_tools_detailed(mission_id)
+        mission_data['vehicles'] = get_mission_vehicles_detailed(mission_id)
+        
+        return mission_data
+    except Exception as e:
+        print(f"Get enhanced mission by ID error: {e}")
+        return None
+
+# Add assignment functions
+def assign_personnel_to_mission(mission_id: str, personnel_ids: List[str]) -> bool:
+    """Assign personnel to mission"""
+    try:
+        if not db.db:
+            return False
+            
+        # Update mission with personnel_ids
+        db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).update({
+            'personnel_ids': personnel_ids,
+            'updated_at': datetime.now().isoformat()
+        })
+        
+        # Log activity
+        db.log_activity('personnel_assigned', {
+            'mission_id': mission_id,
+            'personnel_count': len(personnel_ids)
+        })
+        
+        return True
+    except Exception as e:
+        print(f"Assign personnel error: {e}")
+        return False
+
+def assign_tool_to_mission(mission_id: str, tool_id: str, quantity: int = 1) -> bool:
+    """Assign tool to mission"""
+    try:
+        if not db.db:
+            return False
+            
+        # Create tool assignment
+        assignment_data = {
+            'mission_id': mission_id,
+            'tool_id': tool_id,
+            'quantity': quantity,
+            'status': 'ASSIGNED',
+            'assigned_at': datetime.now().isoformat()
+        }
+        
+        db.db.collection(db.TOOL_ASSIGNMENTS_COLLECTION).add(assignment_data)
+        
+        # Update tool quantity
+        db.update_tool_quantity(tool_id, quantity, 'assign')
+        
+        return True
+    except Exception as e:
+        print(f"Assign tool error: {e}")
+        return False
+
+def assign_vehicle_to_mission(mission_id: str, vehicle_id: str) -> bool:
+    """Assign vehicle to mission"""
+    try:
+        if not db.db:
+            return False
+            
+        # Create vehicle assignment
+        assignment_data = {
+            'mission_id': mission_id,
+            'vehicle_id': vehicle_id,
+            'status': 'ASSIGNED',
+            'assigned_at': datetime.now().isoformat()
+        }
+        
+        db.db.collection(db.VEHICLE_ASSIGNMENTS_COLLECTION).add(assignment_data)
+        
+        # Update vehicle status
+        db.update_vehicle_status(vehicle_id, 'IN_USE')
+        
+        return True
+    except Exception as e:
+        print(f"Assign vehicle error: {e}")
+        return False
