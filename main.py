@@ -158,267 +158,345 @@ def dashboard_router(page: ft.Page):
             on_change=on_nav_change
         )
     
-    def create_header():
-        """Create dashboard header"""
-        user_name = current_user.get('full_name', 'Unknown User') if current_user else 'Guest'
-        user_role = current_user.get('role', 'User').title() if current_user else 'Guest'
-        current_time = datetime.now().strftime("%d/%m/%Y %H:%M")
-        
-        return ft.Container(
-            content=ft.Row([
-                ft.Column([
-                    ft.Text("SmartConnect Manager", size=23, weight=ft.FontWeight.BOLD, color=GOLD),
-                    ft.Text(f"Connected as: {user_role}", size=14, color="#64748b"),
-                    ft.Text(f"User: {user_name}", size=12, color="#94a3b8"),
-                    ft.Text(f"Last update: {current_time}", size=12, color="#94a3b8")
-                ], spacing=5),
-            ]),
-            padding=20,
-            bgcolor=WHITE,
-            border_radius=10,
-            shadow=ft.BoxShadow(blur_radius=5, color="#e2e8f0")
-        )
-    
-    def create_stat_card(title, total, active, inactive, color):
-        """Create individual stat card"""
-        return ft.Container( 
-            content=ft.Column([
-                ft.Row([
-                    ft.Icon(ft.Icons.ANALYTICS, color=color, size=20),
-                    ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color="#1e293b")
-                ], alignment=ft.MainAxisAlignment.START),
-                ft.Divider(height=1, color="#e2e8f0"),
-                ft.Text(f"Total: {total}", size=12, color="#64748b"),
-                ft.Row([
-                    ft.Container(
-                        content=ft.Text(f"Active: {active}", size=9, color=WHITE),
-                        padding=5,
-                        bgcolor="#10b981",
-                        border_radius=5
-                    ),
-                    ft.Container(
-                        content=ft.Text(f"Inactive: {inactive}", size=9, color=WHITE),
-                        padding=5,
-                        bgcolor="#ef4444",
-                        border_radius=5
-                    )
-                ], spacing=5)
-            ], spacing=5),
-            padding=20,
-            bgcolor=WHITE,
-            border_radius=10,
-            shadow=ft.BoxShadow(blur_radius=5, color="#e2e8f0"),
-            width=160,
-            height=130
-        )
-    
-    def create_stats_section():
-        """Create stats cards section using real data"""
-        return ft.Container(
-            content=ft.Row([
-                ft.Column([
-                    create_stat_card("Employees", dashboard_data["employees"]["total"], 
-                                   dashboard_data["employees"]["active"], dashboard_data["employees"]["on_leave"], "#3b82f6"),
-                    create_stat_card("Projects", dashboard_data["projects"]["total"], 
-                                   dashboard_data["projects"]["active"], dashboard_data["projects"]["completed"], "#10b981")
-                ]),
-                ft.Column([
-                    create_stat_card("Vehicles", dashboard_data["vehicles"]["total"], 
-                                   dashboard_data["vehicles"]["available"], dashboard_data["vehicles"]["in_use"], "#f59e0b"),
-                    create_stat_card("Equipment", dashboard_data["equipment"]["total"], 
-                                   dashboard_data["equipment"]["operational"], dashboard_data["equipment"]["maintenance"], "#8b5cf6")
-                ])
-            ]),
-            margin=ft.margin.only(top=20, left=13)
-        )
-    
-    def create_quick_actions(handle_action):
-        """Create quick actions section"""
-        actions = [
-            {"title": "Add Employé", "icon": ft.Icons.PERSON_ADD, "color": "#3b82f6"},
-            {"title": "New Missions", "icon": ft.Icons.ADD_TASK, "color": "#10b981"},
-            {"title": "View All Car", "icon": ft.Icons.DIRECTIONS_CAR, "color": "#f59e0b"},
-            {"title": "View All Mission", "icon": ft.Icons.VIEW_LIST, "color": "#8b5cf6"}
-        ]
-        
-        return ft.Container(
-            content=ft.Column([
-                ft.Text("Quick actions:", size=18, weight=ft.FontWeight.BOLD, color="#1e293b", text_align="CENTER"),
-                ft.Divider(height=1, color="#e2e8f0"),
-                ft.Column([
-                    ft.ElevatedButton(
-                        content=ft.Row([
-                            ft.Icon(action["icon"], color=action["color"]),
-                            ft.Text(action["title"], color="#1e293b")
-                        ], spacing=10),
-                        on_click=lambda e, title=action["title"]: handle_action(title),
-                        style=ft.ButtonStyle(
-                            bgcolor="#f8fafc",
-                            color="#1e293b",
-                            elevation=2
-                        ),
-                        width=350
-                    ) for action in actions
-                ], spacing=10)
-            ], spacing=15),
-            padding=20,
-            bgcolor=WHITE,
-            border_radius=10,
-            shadow=ft.BoxShadow(blur_radius=5, color="#e2e8f0"),
-            width=350
-        )
-    
-    def create_recent_activities():
-        """Create recent activities section using real data"""
-        try:
-            activities_data = get_recent_activities(14)  # Get 14 recent activities
-            
-            if not activities_data:
-                # Fallback activities if database is empty
-                activities_data = [
-                    {"activity_type": "login", "timestamp": datetime.now().isoformat(), "activity_data": {"message": "No recent activities"}},
-                ]
-        except Exception as e:
-            print(f"Error getting activities: {e}")
-            activities_data = [
-                {"activity_type": "error", "timestamp": datetime.now().isoformat(), "activity_data": {"message": "Error loading activities"}},
-            ]
-        
-        def get_activity_display(activity):
-            """Convert database activity to display format"""
-            activity_type = activity.get('activity_type', 'Unknown')
-            activity_data = activity.get('activity_data', {})
-            timestamp = activity.get('timestamp', '')
-            
-            # Parse timestamp
-            try:
-                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                time_diff = datetime.now() - dt.replace(tzinfo=None)
-                
-                if time_diff.days > 0:
-                    time_str = f"There is {time_diff.days} day(s)"
-                elif time_diff.seconds > 3600:
-                    hours = time_diff.seconds // 3600
-                    time_str = f"There is {hours}h"
-                elif time_diff.seconds > 60:
-                    minutes = time_diff.seconds // 60
-                    time_str = f"There is {minutes} min"
-                else:
-                    time_str = "NOW"
-            except:
-                time_str = "Recently"
-            
-            # Format activity message based on type
-            if activity_type == 'mission_created':
-                message = f"Mission created: {activity_data.get('title', 'Unknown')}"
-                activity_type_display = "success"
-            elif activity_type == 'mission_status_updated':
-                message = f"Update mission: {activity_data.get('new_status', 'Unknown')}"
-                activity_type_display = "info"
-            elif activity_type == 'user_login':
-                message = f"User connection: {activity_data.get('username', 'Unknown')}"
-                activity_type_display = "info"
-            else:
-                message = activity_data.get('message', f'Activity: {activity_type}')
-                activity_type_display = "info"
-            
-            return {
-                "action": message,
-                "time": time_str,
-                "type": activity_type_display
-            }
-        
-        activities = [get_activity_display(activity) for activity in activities_data]
-        
-        def get_activity_color(activity_type):
-            colors = {
-                "info": "#3b82f6",
-                "success": "#10b981",
-                "warning": "#f59e0b",
-                "error": "#ef4444"
-            }
-            return colors.get(activity_type, "#64748b")
-        
-        return ft.Container(
-            content=ft.Column([
-                ft.Text("Recent Activities:", size=18, weight=ft.FontWeight.BOLD, color="#1e293b"),
-                ft.Divider(height=1, color="#e2e8f0"),
-                ft.Column([
-                    ft.Container(
-                        content=ft.Row([
-                            ft.Container(
-                                width=4,
-                                height=40,
-                                bgcolor=get_activity_color(activity["type"]),
-                                border_radius=2
-                            ),
-                            ft.Column([
-                                ft.Text(activity["action"], size=14, color="#1e293b"),
-                                ft.Text(activity["time"], size=12, color="#64748b")
-                            ], spacing=2, expand=True)
-                        ], spacing=10),
-                        padding=10,
-                        bgcolor="#f8fafc",
-                        border_radius=8,
-                        margin=ft.margin.only(bottom=5)
-                    ) for activity in activities
-                ], spacing=5, scroll=ft.ScrollMode.AUTO, height=300)
-            ], spacing=15),
-            padding=20,
-            bgcolor=WHITE,
-            border_radius=10,
-            shadow=ft.BoxShadow(blur_radius=5, color="#e2e8f0"),
-            expand=True
-        )
-    
-    def handle_quick_action(title):
-        """Handle quick action clicks"""
-        if title == "New Missions":
-            go_to("/add-mission")
-        elif title == "Add Employé":
-            go_to("/adduser")
-        elif title == "View All Car":
-            go_to("/cars")
-        elif title == "View All Mission":
-            go_to("/missions")
-            
-    # ========== VIEW FUNCTIONS ==========
-    
     def dashboard_view():
-        """Dashboard view"""
+        """Dashboard view with document management system design style"""
         # Refresh data when dashboard loads
         refresh_dashboard_data()
+
+        def logout_click(e):
+            logout_user()
         
-        content = ft.Column([
-            create_header(),
-            create_stats_section(),
-            create_quick_actions(handle_quick_action),
-            create_recent_activities(),
-        ], spacing=20, scroll=ft.ScrollMode.AUTO)
+        def handle_quick_action(title):
+            """Handle quick action clicks"""
+            if title == "New Missions":
+                go_to("/add-mission")
+            elif title == "Add Employé":
+                go_to("/adduser")
+            elif title == "View All Car":
+                go_to("/cars")
+            elif title == "View All Mission":
+                go_to("/missions")
         
-        return ft.View(
-            route="/dashboard",
-            appbar=create_app_bar(
-                "Dashboard",
-                actions=[
-                    ft.IconButton(
-                        icon=ft.Icons.REFRESH, 
+        # Get current user info
+        user_name = current_user.get('full_name', 'Unknown User') if current_user else 'Guest'
+        user_role = current_user.get('role', 'User').title() if current_user else 'Guest'
+        
+        # Create simple V1 style activity cards
+        def create_recent_activities():
+            try:
+                activities_data = get_recent_activities(10)
+                
+                if not activities_data:
+                    activities_data = [
+                        {"activity_type": "login", "timestamp": datetime.now().isoformat(), 
+                        "activity_data": {"message": "No recent activities"}},
+                    ]
+            except Exception as e:
+                activities_data = [
+                    {"activity_type": "error", "timestamp": datetime.now().isoformat(), 
+                    "activity_data": {"message": "Error loading activities"}},
+                ]
+            
+            def get_activity_display(activity):
+                activity_type = activity.get('activity_type', 'Unknown')
+                activity_data = activity.get('activity_data', {})
+                timestamp = activity.get('timestamp', '')
+                
+                # Parse timestamp
+                try:
+                    dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                    time_diff = datetime.now() - dt.replace(tzinfo=None)
+                    
+                    if time_diff.days > 0:
+                        time_str = f"{time_diff.days}d ago"
+                    elif time_diff.seconds > 3600:
+                        hours = time_diff.seconds // 3600
+                        time_str = f"{hours}h ago"
+                    elif time_diff.seconds > 60:
+                        minutes = time_diff.seconds // 60
+                        time_str = f"{minutes}m ago"
+                    else:
+                        time_str = "Now"
+                except:
+                    time_str = "Recently"
+                
+                # Format activity message based on type
+                if activity_type == 'mission_created':
+                    message = f"Mission: {activity_data.get('title', 'New task')}"
+                    activity_type_display = "success"
+                elif activity_type == 'mission_status_updated':
+                    message = f"Updated: {activity_data.get('new_status', 'Status')}"
+                    activity_type_display = "info"
+                elif activity_type == 'user_login':
+                    message = f"Login: {activity_data.get('username', 'User')}"
+                    activity_type_display = "info"
+                else:
+                    message = activity_data.get('message', f'Activity: {activity_type}')
+                    activity_type_display = "info"
+                
+                return {
+                    "action": message[:35] + "..." if len(message) > 35 else message,
+                    "time": time_str,
+                    "type": activity_type_display
+                }
+            
+            activities = [get_activity_display(activity) for activity in activities_data]
+            
+            def get_activity_color(activity_type):
+                colors = {
+                    "info": "#2D9CDB",
+                    "success": "#27AE60", 
+                    "warning": "#FFB000",
+                    "error": "#EB5757"
+                }
+                return colors.get(activity_type, "#666666")
+            
+            return ft.Container(
+                content=ft.Column([
+                    ft.Text("Recent Activities", size=18, weight=ft.FontWeight.BOLD, color="#2D9CDB"),
+                    ft.Divider(height=1, color="#E0E0E0"),
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Container(
+                                        width=3,
+                                        height=35,
+                                        bgcolor=get_activity_color(activity["type"]),
+                                        border_radius=2
+                                    ),
+                                    ft.Column([
+                                        ft.Text(activity["action"], size=12, color="#1e293b"),
+                                        ft.Text(activity["time"], size=10, color="#64748b")
+                                    ], spacing=2, expand=True)
+                                ], spacing=8),
+                                padding=ft.padding.symmetric(vertical=6, horizontal=8),
+                                bgcolor="#f8fafc",
+                                border_radius=6,
+                                margin=ft.margin.only(bottom=4)
+                            ) for activity in activities
+                        ], spacing=0, scroll=ft.ScrollMode.AUTO, height=300)
+                    )
+                ], spacing=10),
+                bgcolor="white",
+                padding=20,
+                border_radius=15,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=10,
+                    color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
+                    offset=ft.Offset(0, 3),
+                ),
+                margin=ft.margin.only(bottom=15)
+            )
+        
+        # Statistics cards - two per row
+        stat_cards = ft.Column([
+            ft.Row([
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.PEOPLE, color="#2D9CDB", size=30),
+                        ft.Text(str(dashboard_data["employees"]["total"]), size=24, weight=ft.FontWeight.BOLD, color="#2D9CDB"),
+                        ft.Text("Employees", size=12, color="#666666")
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    bgcolor="white",
+                    padding=15,
+                    border_radius=10,
+                    width=140,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=5,
+                        color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
+                        offset=ft.Offset(0, 2),
+                    )
+                ),
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.WORK, color="#27AE60", size=30),
+                        ft.Text(str(dashboard_data["projects"]["total"]), size=24, weight=ft.FontWeight.BOLD, color="#27AE60"),
+                        ft.Text("Projects", size=12, color="#666666")
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    bgcolor="white",
+                    padding=15,
+                    border_radius=10,
+                    width=140,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=5,
+                        color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
+                        offset=ft.Offset(0, 2),
+                    )
+                )
+            ], alignment=ft.MainAxisAlignment.SPACE_EVENLY),
+            ft.Container(height=15),
+            ft.Row([
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.DIRECTIONS_CAR, color="#FFB000", size=30),
+                        ft.Text(str(dashboard_data["vehicles"]["total"]), size=24, weight=ft.FontWeight.BOLD, color="#FFB000"),
+                        ft.Text("Vehicles", size=12, color="#666666")
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    bgcolor="white",
+                    padding=15,
+                    border_radius=10,
+                    width=140,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=5,
+                        color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
+                        offset=ft.Offset(0, 2),
+                    )
+                ),
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.BUILD, color="#EB5757", size=30),
+                        ft.Text(str(dashboard_data["equipment"]["total"]), size=24, weight=ft.FontWeight.BOLD, color="#EB5757"),
+                        ft.Text("Tools", size=12, color="#666666")
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    bgcolor="white",
+                    padding=15,
+                    border_radius=10,
+                    width=140,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=5,
+                        color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
+                        offset=ft.Offset(0, 2),
+                    )
+                )
+            ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
+        ])
+
+        # Get activity widget
+        recent_activities_widget = create_recent_activities()
+
+        dashboard_content = [
+            # Header
+            ft.Container(
+                content=ft.Row([
+                    ft.Column([
+                        ft.Text("SmartConnect Manager", size=24, weight=ft.FontWeight.BOLD, color="white"),
+                        ft.Text(f"Welcome back, {user_name}", size=14, color="white")
+                    ], expand=True),
+                        ft.IconButton(
+                        icon=ft.Icons.REFRESH,
+                        icon_color="white", 
                         tooltip="Refresh Data", 
-                        on_click=lambda e: refresh_all_data()
+                        on_click=lambda e: refresh_all_data(),
+                        bgcolor=ft.Colors.with_opacity(0.2, "white"),
+                        style=ft.ButtonStyle(shape=ft.CircleBorder())
                     ),
                     ft.IconButton(
-                        icon=ft.Icons.LOGOUT, 
-                        tooltip="Logout", 
-                        on_click=lambda e: logout_user()
+                        icon=ft.Icons.LOGOUT,
+                        icon_color="white",
+                        on_click=logout_click,
+                        bgcolor=ft.Colors.with_opacity(0.2, "white"),
+                        style=ft.ButtonStyle(shape=ft.CircleBorder())
                     )
-                ]
+                ]),
+                bgcolor=GOLD,
+                padding=25,
+                border_radius=15,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=15,
+                    color=ft.Colors.with_opacity(0.3, GOLD),
+                    offset=ft.Offset(0, 5),
+                )
             ),
+            ft.Container(height=25),
+
+            # Statistics Overview
+            ft.Container(
+                content=ft.Column([
+                    ft.Text("Overview", size=18, weight=ft.FontWeight.BOLD, color="#2D9CDB"),
+                    ft.Container(height=15),
+                    stat_cards
+                ]),
+                bgcolor="white",
+                padding=20,
+                border_radius=15,
+                margin=ft.margin.only(bottom=20),
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=10,
+                    color=ft.Colors.with_opacity(0.1, ft.Colors.GREY),
+                    offset=ft.Offset(0, 3),
+                )
+            ),
+
+            # Action buttons - two per row
+            ft.Column([
+                ft.Row([
+                    ft.ElevatedButton(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.PERSON_ADD, color="white"),
+                            ft.Text("Add employee", color="white")
+                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        on_click=lambda e: handle_quick_action("Add Employé"),
+                        bgcolor="#2D9CDB",
+                        width=140,
+                        height=45,
+                        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))
+                    ),
+                    ft.ElevatedButton(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.ADD_TASK, color="white"),
+                            ft.Text("Add Project", color="white")
+                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        on_click=lambda e: handle_quick_action("New Missions"),
+                        bgcolor="#27AE60",
+                        width=140,
+                        height=45,
+                        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))
+                    )
+                ], alignment=ft.MainAxisAlignment.SPACE_EVENLY),
+                ft.Container(height=15),
+                ft.Row([
+                    ft.ElevatedButton(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.DIRECTIONS_CAR, color="white"),
+                            ft.Text("All Vehicles", color="white")
+                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        on_click=lambda e: handle_quick_action("View All Car"),
+                        bgcolor="#FFB000",
+                        width=140,
+                        height=45,
+                        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))
+                    ),
+                    ft.ElevatedButton(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.VIEW_LIST, color="white"),
+                            ft.Text("All Projects", color="white")
+                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        on_click=lambda e: handle_quick_action("View All Mission"),
+                        bgcolor="#EB5757",
+                        width=140,
+                        height=45,
+                        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))
+                    )
+                ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
+            ]),
+
+            ft.Container(height=25),
+
+            # Recent Activities section
+            recent_activities_widget
+        ]
+
+        return ft.View(
+            route="/dashboard",
             navigation_bar=create_bottom_nav(0),
             controls=[
                 ft.Container(
-                    content=content,
-                    expand=True,
-                    margin=ft.margin.only(left=10)
+                    content=ft.Column(
+                        dashboard_content,
+                        scroll=ft.ScrollMode.AUTO,
+                        expand=True,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                    ),
+                    padding=20,
+                    expand=True
                 )
             ]
         )
@@ -2893,15 +2971,6 @@ def dashboard_router(page: ft.Page):
                     # Store current user globally
                     current_user = authenticated_user
                     
-                    # Log the login activity
-                    try:
-                        db.log_activity('user_login', {
-                            'username': username,
-                            'login_time': datetime.now().isoformat()
-                        }, authenticated_user.get('id'))
-                    except Exception as le:
-                        print(f"Error logging login activity: {le}")
-                    
                     # Reset button state
                     is_loading = False
                     login_button.content = ft.Text("Sign In", color=WHITE, weight=ft.FontWeight.BOLD, size=16)
@@ -3041,7 +3110,6 @@ def dashboard_router(page: ft.Page):
             on_click=on_login_click 
         )
         
-        # Social login section
         social_divider = ft.Row([
             ft.Container(
                 content=ft.Divider(color=GRAY_300, height=1),
@@ -3467,13 +3535,18 @@ def dashboard_router(page: ft.Page):
         return ft.View(
             route="/cars",
             appbar=create_app_bar(
-                "Vehicle Fleet",
+                "Vehicle",
                 show_nav=False,
                 actions=[
                     ft.IconButton(
                         icon=ft.Icons.REFRESH, 
                         tooltip="Refresh Vehicles",
                         on_click=lambda e: refresh_cars_and_update()
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.ADD_BOX, 
+                        tooltip="Add Vehicle",
+                        on_click=lambda e: go_to("/add-vehicle")
                     )
                 ]
             ),
@@ -4605,18 +4678,6 @@ def dashboard_router(page: ft.Page):
             else:
                 return GRAY
 
-        def get_priority_color(priority):
-            """Return color based on priority level"""
-            if priority == "LOW":
-                return GREEN
-            elif priority == "MEDIUM":
-                return ORANGE
-            elif priority == "HIGH":
-                return RED
-            elif priority == "URGENT":
-                return RED
-            else:
-                return GRAY
 
         def create_mission_card(mission):
             """Create a mission card component using real data"""
@@ -4697,14 +4758,6 @@ def dashboard_router(page: ft.Page):
                         )
                     ], spacing=5),
                     
-                    ft.Row([
-                        ft.Icon(ft.Icons.PERSON, size=16, color=ft.Colors.GREY_600),
-                        ft.Text(
-                            f"Assigned: {mission.get('assigned_user', {}).get('full_name', 'Not assigned')}",
-                            size=14,
-                            color=ft.Colors.GREY_700
-                        )
-                    ], spacing=5),
                     
                     ft.Row([
                         ft.Icon(ft.Icons.CALENDAR_TODAY, size=16, color=ft.Colors.GREY_600),
@@ -4717,15 +4770,6 @@ def dashboard_router(page: ft.Page):
                     
                     ft.Row([
                         ft.Container(
-                            content=ft.Text(
-                                mission.get('priority', 'MEDIUM'),
-                                color=WHITE,
-                                size=10,
-                                weight=ft.FontWeight.BOLD
-                            ),
-                            bgcolor=get_priority_color(mission.get('priority', 'MEDIUM')),
-                            padding=ft.padding.symmetric(horizontal=8, vertical=2),
-                            border_radius=8
                         ),
                         ft.Row([
                             *quick_actions,
@@ -4996,7 +5040,6 @@ def dashboard_router(page: ft.Page):
                         ft.Column([
                             ft.Text(f"ID: #{mission.get('id', 'Unknown')[:8]}", size=14),
                             ft.Text(f"Status: {mission.get('status', 'Unknown')}", size=12, color=get_status_color(mission.get('status', 'Unknown'))),
-                            ft.Text(f"Priority: {mission.get('priority', 'Unknown')}", size=12, color=get_priority_color(mission.get('priority', 'Unknown')))
                         ], spacing=4, expand=True)
                     ]),
                     ft.Divider(),
@@ -5007,10 +5050,6 @@ def dashboard_router(page: ft.Page):
                         ft.Row([
                             ft.Text("Location:", weight=ft.FontWeight.BOLD, size=12),
                             ft.Text(mission.get("location", "No location"), size=11)
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Row([
-                            ft.Text("Assigned To:", weight=ft.FontWeight.BOLD, size=12),
-                            ft.Text(mission.get('assigned_user', {}).get('full_name', 'Not assigned'), size=11)
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         ft.Row([
                             ft.Text("Due Date:", weight=ft.FontWeight.BOLD, size=12),
@@ -5030,18 +5069,12 @@ def dashboard_router(page: ft.Page):
             def create_resources_tab():
                 # Extract personnel data - combine assigned user and team leader
                 personnel = []
-                if mission.get('assigned_user'):
-                    personnel.append({
-                        'name': mission['assigned_user'].get('full_name', 'Unknown'),
-                        'role': 'Assigned Person',
-                        'status': 'Assigned'
-                    })
+                if mission.get('team_members'):
+                    personnel.extend(mission['team_members'])
+                
+                # Add team leader
                 if mission.get('team_leader'):
-                    personnel.append({
-                        'name': mission['team_leader'].get('full_name', 'Unknown'),
-                        'role': 'Team Leader', 
-                        'status': 'Leading'
-                    })
+                    personnel.append(mission['team_leader'])
                 
                 # Extract vehicle data - convert single vehicle to array
                 vehicles = []
@@ -5068,7 +5101,7 @@ def dashboard_router(page: ft.Page):
                                 height=40
                             )
                         ], spacing=4),
-                        height=120,
+                        height=max(min(len(personnel) * 50, 300), 50) if personnel else 50,
                         expand=True
                     ),
                     
@@ -5086,7 +5119,7 @@ def dashboard_router(page: ft.Page):
                                 height=40
                             )
                         ], spacing=4),
-                        height=120,
+                        height=max(min(len(tools) * 50, 300), 50) if tools else 50,
                         expand=True
                     ),
                     
@@ -5517,7 +5550,7 @@ def dashboard_router(page: ft.Page):
             "/add-tool": add_tool,
             "/add-vehicle": add_vehicle,
             "/missions": view_missions,
-            "/edit_employee": lambda: edit_employees(),  # For creating new employee
+            "/edit_employee": lambda: edit_employees(),  
         }
         
         # Get the route handler

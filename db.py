@@ -734,19 +734,31 @@ def get_all_missions_with_details() -> List[Dict]:
         for doc in missions_ref.stream():
             mission_data = db.to_dict(doc)
             if mission_data:
-                # Get assigned user info
-                if mission_data.get('assigned_person_id'):
-                    user_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['assigned_person_id']).get()
-                    if user_doc.exists:
-                        user_data = user_doc.to_dict()
-                        mission_data['assigned_user'] = {'full_name': user_data.get('full_name')}
-                
-                # Get team leader info
+                # Get assigned team info (replace the assigned_user section)
+                if mission_data.get('assigned_team'):
+                    mission_data['team_members'] = []
+                    for user_id in mission_data['assigned_team']:
+                        user_doc = db.db.collection(db.USERS_COLLECTION).document(user_id).get()
+                        if user_doc.exists:
+                            user_data = user_doc.to_dict()
+                            mission_data['team_members'].append({
+                                'name': user_data.get('full_name'),
+                                'role': user_data.get('role', 'Team Member'),
+                                'phone': user_data.get('phone'),
+                                'status': 'Assigned'
+                            })
+
+                # Keep team leader section as is
                 if mission_data.get('team_leader_id'):
                     leader_doc = db.db.collection(db.USERS_COLLECTION).document(mission_data['team_leader_id']).get()
                     if leader_doc.exists:
                         leader_data = leader_doc.to_dict()
-                        mission_data['team_leader'] = {'full_name': leader_data.get('full_name')}
+                        mission_data['team_leader'] = {
+                            'name': leader_data.get('full_name'),
+                            'role': 'Team Leader',
+                            'phone': leader_data.get('phone'),
+                            'status': 'Leading'
+                        }
                 
                 # Get vehicle info
                 if mission_data.get('vehicle_id'):
@@ -1263,4 +1275,4 @@ def assign_vehicle_to_mission(mission_id: str, vehicle_id: str) -> bool:
         return True
     except Exception as e:
         print(f"Assign vehicle error: {e}")
-        return False
+        return False    
