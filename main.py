@@ -302,7 +302,7 @@ def dashboard_router(page: ft.Page):
                     bgcolor="white",
                     padding=15,
                     border_radius=10,
-                    width=140,
+                    width=110,
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=5,
@@ -319,7 +319,7 @@ def dashboard_router(page: ft.Page):
                     bgcolor="white",
                     padding=15,
                     border_radius=10,
-                    width=140,
+                    width=110,
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=5,
@@ -339,7 +339,7 @@ def dashboard_router(page: ft.Page):
                     bgcolor="white",
                     padding=15,
                     border_radius=10,
-                    width=140,
+                    width=110,
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=5,
@@ -356,7 +356,7 @@ def dashboard_router(page: ft.Page):
                     bgcolor="white",
                     padding=15,
                     border_radius=10,
-                    width=140,
+                    width=110,
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=5,
@@ -375,7 +375,7 @@ def dashboard_router(page: ft.Page):
             ft.Container(
                 content=ft.Row([
                     ft.Column([
-                        ft.Text("SmartConnect Manager", size=24, weight=ft.FontWeight.BOLD, color="white"),
+                        ft.Text("SmartConnect Manager", size=20, weight=ft.FontWeight.BOLD, color="white"),
                         ft.Text(f"Welcome back, {user_name}", size=14, color="white")
                     ], expand=True),
                         ft.IconButton(
