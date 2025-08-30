@@ -117,7 +117,7 @@ def dashboard_router(page: ft.Page):
         if not show_nav:
             leading = ft.IconButton(
                 ft.Icons.ARROW_BACK,
-                on_click=lambda _: go_to("/dashboard")
+                on_click=lambda e: view_pop(None)
             )
         
         return ft.AppBar(
@@ -840,9 +840,9 @@ def dashboard_router(page: ft.Page):
             label="Role",
             options=[
                 ft.dropdown.Option("admin", "Administrator"),
-                ft.dropdown.Option("secretaire", "secretaire"),
+                ft.dropdown.Option("secretary", "secretary"),
                 ft.dropdown.Option("team_leader", "team_leader"),
-                ft.dropdown.Option("technicien", "technicien")
+                ft.dropdown.Option("technician", "technician")
             ],
             value=employee_data.get('role', '') if employee_data else '',
             width=300,
@@ -866,7 +866,7 @@ def dashboard_router(page: ft.Page):
             value=employee_data.get('active', True) if employee_data else True
         )
                 
-        # Phone field (if you want to add it)
+        # Phone field 
         phone_field = ft.TextField(
             label="Phone Number (Optional)",
             value=employee_data.get('phone', '') if employee_data else '',
@@ -876,7 +876,7 @@ def dashboard_router(page: ft.Page):
             bgcolor=ft.Colors.WHITE
         )
         
-        # Email field (if you want to add it)
+        # Email field 
         email_field = ft.TextField(
             label="Email (Optional)",
             border_color=BLACK,
@@ -2646,7 +2646,7 @@ def dashboard_router(page: ft.Page):
         DARK_GRAY = "#333333"
         BORDER_COLOR = "#e0e0e0"
         
-        role_list = ['admin', 'secretaire', 'team_leader', 'technicien']
+        role_list = ['admin', 'secretary', 'team_leader', 'technician']
         is_loading = False
         
         # Get departments from database
@@ -5489,8 +5489,17 @@ def dashboard_router(page: ft.Page):
     
     # ========== ROUTE HANDLING ==========
     
+    navigation_history = []
+    
     def route_change(e):
         """Handle route changes"""
+        # Add current route to navigation history (avoid duplicates)
+        if not navigation_history or navigation_history[-1] != page.route:
+            navigation_history.append(page.route)
+            # Keep history reasonable size (optional)
+            if len(navigation_history) > 20:
+                navigation_history.pop(0)
+        
         # Clear the page
         page.views.clear()
         
@@ -5550,7 +5559,7 @@ def dashboard_router(page: ft.Page):
             "/add-tool": add_tool,
             "/add-vehicle": add_vehicle,
             "/missions": view_missions,
-            "/edit_employee": lambda: edit_employees(),  
+            "/edit_employee": lambda: edit_employees(),
         }
         
         # Get the route handler
@@ -5562,11 +5571,64 @@ def dashboard_router(page: ft.Page):
         # Add view to page
         page.views.append(view)
         page.update()
-    
+
+    def view_pop(view):
+        """Handle Android back button press"""
+        navigation_history
+        
+        # Remove current route from history if it's there
+        if navigation_history and navigation_history[-1] == page.route:
+            navigation_history.pop()
+        
+        # Check if there's a previous route to go back to
+        if navigation_history:
+            # Get the previous route
+            previous_route = navigation_history[-1]
+            # Remove it from history to avoid duplicating when route_change is called
+            navigation_history.pop()
+            # Navigate to previous route
+            page.go(previous_route)
+        else:
+            # No history available - handle based on current route
+            if page.route == "/login":
+                # On login page, show exit dialog or close app
+                show_exit_dialog()
+            elif current_user:
+                # If logged in, go to dashboard
+                page.go("/dashboard")
+            else:
+                # Not logged in, go to login
+                page.go("/login")
+
+    def show_exit_dialog():
+        """Show exit confirmation dialog"""
+        def close_dialog(e):
+            dialog.open = False
+            page.update()
+        
+        def exit_app(e):
+            page.window_close()
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("Exit App"),
+            content=ft.Text("Do you want to exit the application?"),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dialog),
+                ft.TextButton("Exit", on_click=exit_app),
+            ],
+        )
+        
+        page.open(dialog)
+        dialog.open = True
+        page.update()
+
     # Set up route change handler
     page.on_route_change = route_change
-    
-    # Navigate to login initially 
+
+    # Set up back button handler
+    page.on_view_pop = view_pop
+
+    # Navigate to login initially
     page.go("/login")
 
 
