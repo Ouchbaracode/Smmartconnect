@@ -1,7 +1,6 @@
-import flet as ft
+import flet  as ft
 from datetime import datetime , timedelta
-import time 
-from typing import Dict
+import time  
 # Updated imports to use the new database
 from db import (
     login as db_login, 
@@ -23,6 +22,7 @@ from db import (
     add_mission_log,
     db,  # Import the database manager instance
 )
+navigation_history = []
 
 def dashboard_router(page: ft.Page):
     """Main dashboard router function with all functionality inside"""
@@ -35,7 +35,7 @@ def dashboard_router(page: ft.Page):
     page.padding = 5 
     page.bgcolor = "#f5f5f5"
     page.scroll = ft.ScrollMode.AUTO
-    
+
     # Colors
     GOLD = "#FFD700"
     WHITE = "#FFFFFF"
@@ -3181,7 +3181,7 @@ def dashboard_router(page: ft.Page):
                     alignment=ft.alignment.center
                 )
             ]
-        )
+        ) 
     
     def view_all_car():
         """Car management page using real database data"""
@@ -5489,8 +5489,7 @@ def dashboard_router(page: ft.Page):
     
     # ========== ROUTE HANDLING ==========
     
-    navigation_history = []
-    
+
     def route_change(e):
         """Handle route changes"""
         # Add current route to navigation history (avoid duplicates)
@@ -5572,21 +5571,30 @@ def dashboard_router(page: ft.Page):
         page.views.append(view)
         page.update()
 
-    def view_pop(view):
+    def view_pop(e: ft.ViewPopEvent):
         """Handle Android back button press"""
-        navigation_history
+        global navigation_history  # FIXED: Proper global declaration
+        
+        print(f"Back button pressed. Current route: {page.route}")  # Debug log
+        print(f"Navigation history: {navigation_history}")  # Debug log
         
         # Remove current route from history if it's there
         if navigation_history and navigation_history[-1] == page.route:
             navigation_history.pop()
         
         # Check if there's a previous route to go back to
-        if navigation_history:
+        if len(navigation_history) > 0:
             # Get the previous route
             previous_route = navigation_history[-1]
             # Remove it from history to avoid duplicating when route_change is called
             navigation_history.pop()
+            
+            # FIXED: Properly manage view stack before navigation
+            if len(page.views) > 1:
+                page.views.pop()  # Remove current view
+            
             # Navigate to previous route
+            print(f"Navigating back to: {previous_route}")  # Debug log
             page.go(previous_route)
         else:
             # No history available - handle based on current route
@@ -5622,10 +5630,8 @@ def dashboard_router(page: ft.Page):
         dialog.open = True
         page.update()
 
-    # Set up route change handler
+    # IMPORTANT: Register the handlers BEFORE calling page.go()
     page.on_route_change = route_change
-
-    # Set up back button handler
     page.on_view_pop = view_pop
 
     # Navigate to login initially
@@ -5638,4 +5644,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.app(target=main) 
