@@ -122,12 +122,12 @@ def dashboard_router(page: ft.Page):
     def show_snackbar(message, color=ft.Colors.RED):
         """Display a snackbar message"""
         # Create snackbar if it doesn't exist or replace it
-        page.snack_bar = ft.SnackBar(
+        snack_bar = ft.SnackBar(
             content=ft.Text(message, color=WHITE),
             bgcolor=color,
             duration=3000
         )
-        page.snack_bar.open = True
+        page.open(snack_bar)
         page.update() 
             
     def create_bottom_nav(selected_index=0):
