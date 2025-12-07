@@ -1,6 +1,8 @@
 import flet as ft
 from db import login as db_login, login_with_google as db_login_google
 import time
+import os
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 def login_view(page: ft.Page, on_login_success, show_snackbar):
     """Enhanced login with proper database authentication"""
@@ -67,43 +69,64 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
             page.update()
 
     def on_google_login_click(e):
-        """Handle Google Login"""
+        """Handle Google Login using InstalledAppFlow"""
         nonlocal is_loading
-
-        # Trigger Flet OAuth flow
-        # This will redirect the user to Google's login page
-        # The result will be handled by page.on_login in main.py
 
         is_loading = True
         google_login_button.content = ft.Row([
             ft.ProgressRing(width=20, height=20, stroke_width=2, color=GRAY_600),
-            ft.Text("Connecting to Google...", color=GRAY_600, weight=ft.FontWeight.BOLD)
+            ft.Text("Opening Browser...", color=GRAY_600, weight=ft.FontWeight.BOLD)
         ], alignment=ft.MainAxisAlignment.CENTER, tight=True)
         google_login_button.disabled = True
         page.update()
 
         try:
-            # Check if provider is configured
-            has_google_provider = False
-            if hasattr(page, 'oauth_providers'):
-                for provider in page.oauth_providers:
-                    if "google" in str(type(provider)).lower():
-                        has_google_provider = True
-                        break
+            client_id = os.getenv("GOOGLE_CLIENT_ID")
+            client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
 
-            if has_google_provider:
-                page.login(provider=page.oauth_providers[0])
-            else:
-                # Fallback to simulation if no provider (e.g. locally without env vars)
-                print("No OAuth provider found, falling back to simulation")
-                time.sleep(1.5)
+            if not client_id or not client_secret:
+                # Fallback simulation if no env vars (for testing)
+                time.sleep(1)
+                print("Missing Google Credentials, using simulation")
                 fake_id_token = "simulate_google_token_12345"
                 authenticated_user = db_login_google(fake_id_token)
-
                 if authenticated_user:
                     on_login_success(authenticated_user)
                 else:
                     raise Exception("Simulation failed")
+                return
+
+            # Construct client config manually to avoid writing a file
+            client_config = {
+                "installed": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                    "redirect_uris": ["http://localhost"]
+                }
+            }
+
+            # Create flow
+            flow = InstalledAppFlow.from_client_config(
+                client_config,
+                scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
+            )
+
+            # Run local server to get credentials
+            creds = flow.run_local_server(port=0)
+
+            # Get ID token
+            if creds and creds.id_token:
+                authenticated_user = db_login_google(creds.id_token)
+
+                if authenticated_user:
+                    on_login_success(authenticated_user)
+                else:
+                    raise Exception("Authentication failed after getting token")
+            else:
+                raise Exception("Failed to retrieve ID token")
 
         except Exception as ex:
             is_loading = False
