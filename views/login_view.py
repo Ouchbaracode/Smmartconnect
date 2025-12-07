@@ -70,9 +70,9 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
         """Handle Google Login"""
         nonlocal is_loading
 
-        # In a real app, this would trigger the OAuth flow
-        # For this implementation, we'll simulate receiving a token
-        # In Flet web, this might involve page.launch_url() and handling the redirect
+        # Trigger Flet OAuth flow
+        # This will redirect the user to Google's login page
+        # The result will be handled by page.on_login in main.py
 
         is_loading = True
         google_login_button.content = ft.Row([
@@ -82,28 +82,28 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
         google_login_button.disabled = True
         page.update()
 
-        # Simulate network delay for OAuth
-        time.sleep(1.5)
-
         try:
-            # NOTE: In a production environment, you would get an ID token from the client-side Google Auth flow.
-            # Here we are simulating passing a token to the backend.
-            # Since we can't do the actual OAuth flow in this sandbox, we'll call the backend method
-            # which might be mocked to return a user if the token was valid (or simulated).
+            # Check if provider is configured
+            has_google_provider = False
+            if hasattr(page, 'oauth_providers'):
+                for provider in page.oauth_providers:
+                    if "google" in str(type(provider)).lower():
+                        has_google_provider = True
+                        break
 
-            # This is a placeholder for the actual ID token you'd get from Google
-            fake_id_token = "simulate_google_token_12345"
-
-            authenticated_user = db_login_google(fake_id_token)
-
-            if authenticated_user:
-                on_login_success(authenticated_user)
+            if has_google_provider:
+                page.login(provider=page.oauth_providers[0])
             else:
-                is_loading = False
-                google_login_button.content = google_button_content
-                google_login_button.disabled = False
-                show_snackbar("Google Sign-In failed or cancelled", color=ft.Colors.RED)
-                page.update()
+                # Fallback to simulation if no provider (e.g. locally without env vars)
+                print("No OAuth provider found, falling back to simulation")
+                time.sleep(1.5)
+                fake_id_token = "simulate_google_token_12345"
+                authenticated_user = db_login_google(fake_id_token)
+
+                if authenticated_user:
+                    on_login_success(authenticated_user)
+                else:
+                    raise Exception("Simulation failed")
 
         except Exception as ex:
             is_loading = False

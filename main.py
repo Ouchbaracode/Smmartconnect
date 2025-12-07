@@ -1,8 +1,11 @@
 import flet  as ft
 from datetime import datetime
 import time  
+import os
+from flet.auth.providers import GoogleOAuthProvider
+
 # Updated imports to use the new database
-from db import db
+from db import db, login_with_google
 
 # Import views
 from views.dashboard_view import dashboard_view
@@ -34,6 +37,19 @@ def dashboard_router(page: ft.Page):
     page.padding = 5 
     page.bgcolor = "#f5f5f5"
     page.scroll = ft.ScrollMode.AUTO
+
+    # Configure OAuth Provider
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if google_client_id and google_client_secret:
+        page.oauth_providers.append(
+            GoogleOAuthProvider(
+                client_id=google_client_id,
+                client_secret=google_client_secret,
+                redirect_url=f"{page.url}/oauth_callback" if page.web else None
+            )
+        )
 
     # Colors
     WHITE = "#FFFFFF"
@@ -187,6 +203,32 @@ def dashboard_router(page: ft.Page):
         show_snackbar(f"Welcome back, {authenticated_user.get('full_name', 'User')}!", ft.Colors.GREEN)
         go_to("/dashboard")
         
+    def handle_oauth_login(e):
+        """Handle OAuth login result"""
+        if e.error:
+            show_snackbar(f"Login failed: {e.error}", ft.Colors.RED)
+            return
+
+        # Get token
+        token = page.auth.token.get("id_token") or page.auth.token.get("access_token")
+
+        if not token:
+            show_snackbar("Failed to retrieve token from Google", ft.Colors.RED)
+            return
+
+        # Authenticate with backend
+        try:
+            authenticated_user = login_with_google(token)
+
+            if authenticated_user:
+                on_login_success(authenticated_user)
+            else:
+                show_snackbar("Authentication failed", ft.Colors.RED)
+
+        except Exception as ex:
+            print(f"Auth Error: {ex}")
+            show_snackbar("An error occurred during authentication", ft.Colors.RED)
+
     def not_found_view():
         """404 view"""
         content = ft.Column([
@@ -297,6 +339,7 @@ def dashboard_router(page: ft.Page):
     # IMPORTANT: Register the handlers BEFORE calling page.go()
     page.on_route_change = route_change
     page.on_view_pop = view_pop
+    page.on_login = handle_oauth_login # Register oauth handler
 
     # Navigate to login initially
     page.go("/login")
