@@ -1,5 +1,5 @@
 import flet as ft
-from db import login as db_login
+from db import login as db_login, login_with_google as db_login_google
 import time
 
 def login_view(page: ft.Page, on_login_success, show_snackbar):
@@ -9,6 +9,7 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
     BLACK = "#212121"
     GRAY_300 = "#e0e0e0"
     GRAY_600 = "#757575"
+    GOOGLE_BLUE = "#4285F4"
 
     is_loading = False
 
@@ -63,6 +64,52 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
             login_button.content = ft.Text("Sign In", color=WHITE, weight=ft.FontWeight.BOLD, size=16)
             login_button.disabled = False
             show_snackbar(f"Login error: {str(ex)}", color=ft.Colors.RED)
+            page.update()
+
+    def on_google_login_click(e):
+        """Handle Google Login"""
+        nonlocal is_loading
+
+        # In a real app, this would trigger the OAuth flow
+        # For this implementation, we'll simulate receiving a token
+        # In Flet web, this might involve page.launch_url() and handling the redirect
+
+        is_loading = True
+        google_login_button.content = ft.Row([
+            ft.ProgressRing(width=20, height=20, stroke_width=2, color=GRAY_600),
+            ft.Text("Connecting to Google...", color=GRAY_600, weight=ft.FontWeight.BOLD)
+        ], alignment=ft.MainAxisAlignment.CENTER, tight=True)
+        google_login_button.disabled = True
+        page.update()
+
+        # Simulate network delay for OAuth
+        time.sleep(1.5)
+
+        try:
+            # NOTE: In a production environment, you would get an ID token from the client-side Google Auth flow.
+            # Here we are simulating passing a token to the backend.
+            # Since we can't do the actual OAuth flow in this sandbox, we'll call the backend method
+            # which might be mocked to return a user if the token was valid (or simulated).
+
+            # This is a placeholder for the actual ID token you'd get from Google
+            fake_id_token = "simulate_google_token_12345"
+
+            authenticated_user = db_login_google(fake_id_token)
+
+            if authenticated_user:
+                on_login_success(authenticated_user)
+            else:
+                is_loading = False
+                google_login_button.content = google_button_content
+                google_login_button.disabled = False
+                show_snackbar("Google Sign-In failed or cancelled", color=ft.Colors.RED)
+                page.update()
+
+        except Exception as ex:
+            is_loading = False
+            google_login_button.content = google_button_content
+            google_login_button.disabled = False
+            show_snackbar(f"Google Login Error: {str(ex)}", color=ft.Colors.RED)
             page.update()
 
     def on_forgot_password(e):
@@ -178,6 +225,25 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
         on_click=on_login_click
     )
 
+    # Google Login Button
+    google_button_content = ft.Row([
+        ft.Image(src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg", width=24, height=24),
+        ft.Text("Sign in with Google", color=GRAY_600, weight=ft.FontWeight.BOLD, size=16)
+    ], alignment=ft.MainAxisAlignment.CENTER, tight=True)
+
+    google_login_button = ft.OutlinedButton(
+        content=google_button_content,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=12),
+            side=ft.BorderSide(1, GRAY_300),
+            padding=ft.padding.symmetric(vertical=15),
+            overlay_color=GRAY_300,
+        ),
+        height=55,
+        width=300,
+        on_click=on_google_login_click
+    )
+
     social_divider = ft.Row([
         ft.Container(
             content=ft.Divider(color=GRAY_300, height=1),
@@ -221,6 +287,8 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
                     login_button,
                     ft.Container(height=25),
                     social_divider,
+                    ft.Container(height=20),
+                    google_login_button, # Added Google Button here
                     ft.Container(height=20),
                     signup_section
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
