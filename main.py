@@ -1,6 +1,8 @@
 import flet  as ft
 from datetime import datetime
 import time  
+import os
+
 # Updated imports to use the new database
 from db import db
 
@@ -297,6 +299,7 @@ def dashboard_router(page: ft.Page):
     # IMPORTANT: Register the handlers BEFORE calling page.go()
     page.on_route_change = route_change
     page.on_view_pop = view_pop
+    # page.on_login removed
 
     # Navigate to login initially
     page.go("/login")
