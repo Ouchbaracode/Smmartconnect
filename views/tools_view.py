@@ -138,17 +138,8 @@ def tools_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show_sna
                             ),
                             on_click=show_tool_details
                         ),
-                        ft.ElevatedButton(
-                            "Assign" if tool['available'] > 0 else "Reserve",
-                            icon=ft.Icons.ASSIGNMENT if tool['available'] > 0 else ft.Icons.SCHEDULE,
-                            style=ft.ButtonStyle(
-                                bgcolor=ft.Colors.GREEN_50 if tool['available'] > 0 else ft.Colors.ORANGE_50,
-                                color=ft.Colors.GREEN if tool['available'] > 0 else ft.Colors.ORANGE,
-                                shape=ft.RoundedRectangleBorder(radius=8)
-                            ),
-                            on_click=quick_assign,
-                            disabled=tool['available'] == 0
-                        )
+                        # Removed Assign button per request
+                        ft.Container()
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
                 ], spacing=12),
                 padding=16,
@@ -211,12 +202,7 @@ def tools_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show_sna
             ),
             actions=[
                 ft.TextButton("Close", on_click=close_dialog),
-                ft.ElevatedButton(
-                    "Assign Tool",
-                    icon=ft.Icons.ASSIGNMENT,
-                    on_click=assign_tool,
-                    disabled=tool['available'] == 0
-                ),
+                # Removed Assign button per request
                 ft.ElevatedButton(
                     "Maintenance",
                     icon=ft.Icons.BUILD,
@@ -371,7 +357,7 @@ def tools_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show_sna
         """Refresh tools data and update the view"""
         refresh_tools_data()
         filter_tools()
-        show_snackbar("Outils actualisés", ft.Colors.GREEN)
+        show_snackbar("Tools refreshed", ft.Colors.GREEN)
 
     # Set event handlers
     search_field.on_change = on_search_change

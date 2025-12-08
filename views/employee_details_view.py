@@ -85,6 +85,25 @@ def employee_details_view(page: ft.Page, go_to, create_app_bar, show_snackbar, e
         border_radius=12
     )
 
+    # Mission status display (Read-only)
+    mission_status_display = ft.Container(
+        content=ft.Row([
+            ft.Text("Mission Status:", weight=ft.FontWeight.BOLD),
+            ft.Container(
+                content=ft.Text(
+                    employee_data.get('mission_status', 'AVAILABLE').replace('_', ' '),
+                    size=12,
+                    color=ft.Colors.WHITE,
+                    weight=ft.FontWeight.BOLD
+                ),
+                bgcolor=ft.Colors.ORANGE if employee_data.get('mission_status') == 'IN_MISSION' else ft.Colors.GREEN,
+                border_radius=12,
+                padding=ft.padding.symmetric(horizontal=12, vertical=6)
+            )
+        ], spacing=10),
+        margin=ft.margin.only(bottom=10)
+    ) if employee_data else ft.Container()
+
     active_field = ft.Checkbox(
         label="Active Employee",
         value=employee_data.get('active', True) if employee_data else True
@@ -307,6 +326,7 @@ def employee_details_view(page: ft.Page, go_to, create_app_bar, show_snackbar, e
                 department_field,
                 phone_field,
                 email_field,
+                mission_status_display,
                 ft.Container(
                     content=active_field,
                     margin=ft.margin.only(top=12)
