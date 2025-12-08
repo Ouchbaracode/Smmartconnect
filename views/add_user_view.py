@@ -15,18 +15,18 @@ def add_user_view(page: ft.Page, create_app_bar, current_user, show_snackbar):
     is_loading = False
 
     # Get departments from database
-    departements = {
+    departments = {
         1: "logistic",
         2: "administration",
         3: "Field_Operations",
         4: "admin"
     }
 
-    def get_departement_id_from_dict(dropdown_value, departement_dict):
+    def get_department_id_from_dict(dropdown_value, department_dict):
         if dropdown_value:
             try:
                 key = int(dropdown_value.split()[0])
-                return key if key in departement_dict else None
+                return key if key in department_dict else None
             except:
                 return None
         return None
@@ -54,19 +54,19 @@ def add_user_view(page: ft.Page, create_app_bar, current_user, show_snackbar):
             show_snackbar("Role is required")
             return
 
-        if not departement_field.value:
+        if not department_field.value:
             show_snackbar("Department is required")
             return
 
         username = username_field.value.strip()
         Fullname = Full_name.value.strip()
         password = password_field.value.strip()
-        departement_id = get_departement_id_from_dict(departement_field.value, departements)
+        department_id = get_department_id_from_dict(department_field.value, departments)
         Role = Rol_Drop.value
         active = True
 
         try:
-            success = create_user(username, Fullname, password, Role, departement_id, active)
+            success = create_user(username, Fullname, password, Role, department_id, active)
             if success:
                 show_snackbar("User created successfully!", color=ft.Colors.GREEN)
                 # Clear form
@@ -74,7 +74,7 @@ def add_user_view(page: ft.Page, create_app_bar, current_user, show_snackbar):
                 Full_name.value = ""
                 password_field.value = ""
                 Rol_Drop.value = None
-                departement_field.value = None
+                department_field.value = None
                 page.update()
 
                 # Log the activity
@@ -193,9 +193,9 @@ def add_user_view(page: ft.Page, create_app_bar, current_user, show_snackbar):
     )
 
     # Department dropdown
-    departement_field = ft.Dropdown(
+    department_field = ft.Dropdown(
         label="Department",
-        options=[ft.dropdown.Option(f"{key} {value.title()}", f"{key} {value}") for key, value in departements.items()],
+        options=[ft.dropdown.Option(f"{key} {value.title()}", f"{key} {value}") for key, value in departments.items()],
         width=700,
         border_radius=12,
         bgcolor=WHITE,
@@ -233,7 +233,7 @@ def add_user_view(page: ft.Page, create_app_bar, current_user, show_snackbar):
                     ft.Container(height=10),
                     password_field,
                     ft.Container(height=10),
-                    departement_field,
+                    department_field,
                     ft.Container(height=10),
                     Rol_Drop,
                     ft.Container(height=20),

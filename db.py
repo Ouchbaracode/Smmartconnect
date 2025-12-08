@@ -269,6 +269,7 @@ class DatabaseManager:
                 'role': role,
                 'department_id': department_id,
                 'active': active,
+                'mission_status': 'AVAILABLE',
                 'created_at': datetime.now().isoformat(),
                 'updated_at': datetime.now().isoformat(),
                 'last_login': None
@@ -325,6 +326,7 @@ class DatabaseManager:
                         'role': user_data['role'],
                         'department': department_name,
                         'status': 'ACTIVE' if user_data['active'] else 'INACTIVE',
+                        'mission_status': user_data.get('mission_status', 'AVAILABLE'),
                         'last_login': user_data.get('last_login'),
                         'created_at': user_data.get('created_at')
                     })
@@ -587,9 +589,34 @@ class DatabaseManager:
             doc_ref, doc_id = self.db.collection(self.MISSIONS_COLLECTION).add(mission_data)
             
             if doc_ref:
+                mission_id = doc_id.id
+
+                # Assign Team (Personnel)
+                assigned_team = mission_data.get('assigned_team', [])
+                # Also include assigned_person_id if present and not in team
+                if mission_data.get('assigned_person_id') and mission_data.get('assigned_person_id') not in assigned_team:
+                    assigned_team.append(mission_data.get('assigned_person_id'))
+                # Also include team_leader_id if present and not in team
+                if mission_data.get('team_leader_id') and mission_data.get('team_leader_id') not in assigned_team:
+                    assigned_team.append(mission_data.get('team_leader_id'))
+
+                if assigned_team:
+                    assign_personnel_to_mission(mission_id, assigned_team)
+
+                # Assign Vehicle
+                vehicle_id = mission_data.get('vehicle_id')
+                if vehicle_id:
+                    assign_vehicle_to_mission(mission_id, vehicle_id)
+
+                # Assign Tools
+                required_tools = mission_data.get('required_tools', [])
+                if required_tools:
+                    for tool_id in required_tools:
+                        assign_tool_to_mission(mission_id, tool_id, 1) # Default quantity 1 for now
+
                 # Create activity log
                 self.log_activity('mission_created', {
-                    'mission_id': doc_id,
+                    'mission_id': mission_id,
                     'title': mission_data['title'],
                     'assigned_to': mission_data.get('assigned_person_id')
                 })
@@ -636,6 +663,9 @@ class DatabaseManager:
             
             if status == 'COMPLETED':
                 update_data['completed_at'] = datetime.now().isoformat()
+
+                # Release resources
+                self._release_mission_resources(mission_id)
             
             self.db.collection(self.MISSIONS_COLLECTION).document(mission_id).update(update_data)
             
@@ -651,6 +681,52 @@ class DatabaseManager:
         except Exception as e:
             print(f"Update mission status error: {e}")
             return False
+
+    def _release_mission_resources(self, mission_id: str):
+        """Release all resources assigned to a mission"""
+        try:
+            # Release Vehicles
+            # Check vehicle assignments or direct mission link
+            mission_doc = self.db.collection(self.MISSIONS_COLLECTION).document(mission_id).get()
+            if mission_doc.exists:
+                mission_data = mission_doc.to_dict()
+                vehicle_id = mission_data.get('vehicle_id')
+                if vehicle_id:
+                     self.update_vehicle_status(vehicle_id, 'AVAILABLE')
+
+                # Also check vehicle assignments collection if used
+                vehicle_assignments = self.db.collection(self.VEHICLE_ASSIGNMENTS_COLLECTION).where('mission_id', '==', mission_id).stream()
+                for doc in vehicle_assignments:
+                    data = doc.to_dict()
+                    if data.get('vehicle_id'):
+                        self.update_vehicle_status(data['vehicle_id'], 'AVAILABLE')
+
+            # Release Personnel
+            # Check mission for assigned team
+            if mission_data:
+                assigned_team = mission_data.get('assigned_team', [])
+                if mission_data.get('assigned_person_id'):
+                    assigned_team.append(mission_data.get('assigned_person_id'))
+                if mission_data.get('team_leader_id'):
+                    assigned_team.append(mission_data.get('team_leader_id'))
+
+                # Unique IDs
+                assigned_team = list(set(assigned_team))
+
+                for person_id in assigned_team:
+                     self.db.collection(self.USERS_COLLECTION).document(person_id).update({'mission_status': 'AVAILABLE'})
+
+            # Release Tools
+            tool_assignments = self.db.collection(self.TOOL_ASSIGNMENTS_COLLECTION).where('mission_id', '==', mission_id).stream()
+            for doc in tool_assignments:
+                data = doc.to_dict()
+                tool_id = data.get('tool_id')
+                quantity = data.get('quantity', 0)
+                if tool_id and quantity > 0:
+                    self.update_tool_quantity(tool_id, quantity, 'return')
+
+        except Exception as e:
+            print(f"Release resources error: {e}")
     
     # ========== ACTIVITY LOGGING ==========
     
@@ -1437,6 +1513,12 @@ def assign_personnel_to_mission(mission_id: str, personnel_ids: List[str]) -> bo
             'personnel_ids': personnel_ids,
             'updated_at': datetime.now().isoformat()
         })
+
+        # Update each person's status
+        for person_id in personnel_ids:
+            db.db.collection(db.USERS_COLLECTION).document(person_id).update({
+                'mission_status': 'IN_MISSION'
+            })
         
         # Log activity
         db.log_activity('personnel_assigned', {

@@ -65,8 +65,21 @@ def employees_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show
                             bgcolor=status_colors.get(employee_data["status"], ft.Colors.GREY),
                             border_radius=12,
                             padding=ft.padding.symmetric(horizontal=8, vertical=4)
+                        ),
+                        # Mission Status
+                        ft.Container(
+                            content=ft.Text(
+                                employee_data.get("mission_status", "AVAILABLE").replace('_', ' '),
+                                size=10,
+                                color=ft.Colors.WHITE,
+                                weight=ft.FontWeight.BOLD
+                            ),
+                            bgcolor=ft.Colors.ORANGE if employee_data.get("mission_status") == "IN_MISSION" else ft.Colors.BLUE_GREY,
+                            border_radius=12,
+                            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                            visible=employee_data.get("mission_status") == "IN_MISSION"
                         )
-                    ]),
+                    ], alignment=ft.MainAxisAlignment.spaceBetween),
 
                     # Department and role row
                     ft.Row([

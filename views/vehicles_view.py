@@ -172,12 +172,7 @@ def vehicles_view(page: ft.Page, create_app_bar, go_to, show_snackbar):
             ),
             actions=[
                 ft.TextButton("Close", on_click=close_dialog),
-                ft.ElevatedButton(
-                    "Assign" if car.get("status") == "AVAILABLE" else "Reserved",
-                    icon=ft.Icons.ASSIGNMENT,
-                    on_click=assign_vehicle,
-                    disabled=car.get("status") != "AVAILABLE"
-                ),
+                # Removed Assign button per request
                 ft.ElevatedButton(
                     "Maintenance",
                     icon=ft.Icons.BUILD,
@@ -274,7 +269,7 @@ def vehicles_view(page: ft.Page, create_app_bar, go_to, show_snackbar):
         """Refresh vehicle data and update the view"""
         refresh_vehicles_data()
         update_car_list()
-        show_snackbar("Véhicules actualisés", ft.Colors.GREEN)
+        show_snackbar("Vehicles refreshed", ft.Colors.GREEN)
 
     # Initialize form fields
     search_field.current = ft.TextField(
