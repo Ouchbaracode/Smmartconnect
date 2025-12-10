@@ -22,9 +22,18 @@ try:
             cred = credentials.Certificate(service_account_path)
             print(f"Using Firebase credentials from: {service_account_path}")
 
-        
-        firebase_admin.initialize_app(cred)
-        print("Firebase initialized successfully")
+            firebase_admin.initialize_app(cred)
+            print("Firebase initialized successfully")
+        else:
+            print(f"Warning: Service account file not found at {service_account_path}")
+            # Try to initialize with default credentials (environment variables)
+            # This is useful for Google Cloud Platform environments
+            try:
+                default_app = firebase_admin.initialize_app()
+                print("Firebase initialized with default credentials")
+            except Exception as inner_e:
+                print(f"Failed to initialize with default credentials: {inner_e}")
+                raise FileNotFoundError(f"Service account file not found at {service_account_path}")
     
     # Initialize Firestore client
     db_client = firestore.client()
