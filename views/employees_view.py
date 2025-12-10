@@ -79,7 +79,7 @@ def employees_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show
                             padding=ft.padding.symmetric(horizontal=8, vertical=4),
                             visible=employee_data.get("mission_status") == "IN_MISSION"
                         )
-                    ], alignment=ft.MainAxisAlignment.spaceBetween),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
 
                     # Department and role row
                     ft.Row([

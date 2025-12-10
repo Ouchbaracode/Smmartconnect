@@ -149,7 +149,7 @@ class DatabaseManager:
         Exchange Google ID Token for Firebase ID Token using REST API.
         Requires FIREBASE_API_KEY environment variable.
         """
-        api_key = os.getenv("FIREBASE_API_KEY")
+        api_key = os.getenv("FIREBASEAPIKEY")
         if not api_key:
             print("FIREBASE_API_KEY not found in environment variables")
             return None
@@ -158,7 +158,7 @@ class DatabaseManager:
 
         payload = {
             "postBody": f"id_token={google_id_token}&providerId=google.com",
-            "requestUri": "http://localhost", # Placeholder, required parameter
+            "requestUri": "https://accounts.google.com/o/oauth2/auth", # Placeholder, required parameter
             "returnIdpCredential": True,
             "returnSecureToken": True
         }
