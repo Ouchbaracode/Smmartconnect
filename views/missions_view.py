@@ -205,7 +205,7 @@ def missions_view(page: ft.Page, go_to, show_snackbar):
                 content=ft.Text(f"Are you sure you want to delete mission '{mission.get('title', 'Untitled')}'?"),
                 actions=[
                     ft.TextButton("Cancel", on_click=cancel_delete),
-                    ft.TextButton("Delete", on_click=confirm_delete, style=ft.ButtonStyle(color=RED)),
+                    ft.ElevatedButton("Delete", on_click=confirm_delete, bgcolor=RED, color=WHITE),
                 ],
             )
             page.open(confirm_dialog)
@@ -573,14 +573,17 @@ def missions_view(page: ft.Page, go_to, show_snackbar):
                 height=400
             ),
             actions=[
-                ft.TextButton("Close", on_click=close_dialog),
                 ft.Row([
-                     ft.IconButton(
+                    ft.TextButton("Close", on_click=close_dialog),
+                    ft.ElevatedButton(
+                        "Delete",
                         icon=ft.Icons.DELETE,
-                        icon_color=RED,
-                        tooltip="Delete Mission",
+                        bgcolor=ft.Colors.RED_50,
+                        color=RED,
                         on_click=delete_mission_action
                     ),
+                ]),
+                ft.Row([
                     *action_buttons
                 ])
             ],
