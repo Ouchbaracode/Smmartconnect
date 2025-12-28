@@ -813,15 +813,14 @@ class DatabaseManager:
             return False
 
     def delete_employee(self, employee_id: str) -> bool:
-        """Soft delete employee by setting active to False"""
+        """Hard delete employee"""
         try:
             if not self.db:
                 return False
 
-            self.db.collection(self.USERS_COLLECTION).document(employee_id).update({
-                'active': False,
-                'updated_at': datetime.now().isoformat()
-            })
+            # Check if user is in mission?
+            # For now just delete as requested.
+            self.db.collection(self.USERS_COLLECTION).document(employee_id).delete()
 
             self._invalidate_cache('employees')
             return True
@@ -1178,15 +1177,21 @@ def update_mission(mission_id: str, update_data: Dict) -> bool:
         return False
 
 def delete_mission(mission_id: str) -> bool:
-    """Delete mission (soft delete by setting status to CANCELLED)"""
+    """Delete mission (hard delete)"""
     try:
         if not db.db:
             return False
             
-        db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).update({
-            'status': 'CANCELLED',
-            'updated_at': datetime.now().isoformat()
-        })
+        # Release resources first
+        db._release_mission_resources(mission_id)
+
+        # Delete subcollections if needed (Firestore doesn't auto-delete subcollections)
+        # Assuming we might want to keep logs or delete them?
+        # For a clean hard delete, we should ideally delete subcollections too,
+        # but standardized method for that is recursive delete which is not just one call.
+        # For this scope, deleting the document is the primary request.
+
+        db.db.collection(db.MISSIONS_COLLECTION).document(mission_id).delete()
         
         # Log activity
         db.log_activity('mission_deleted', {

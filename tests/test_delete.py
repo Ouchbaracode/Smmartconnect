@@ -75,9 +75,29 @@ class TestDeleteFunctions(unittest.TestCase):
 
         self.assertTrue(result)
         self.mock_db_client.collection.return_value.document.assert_called_with("u1")
-        self.mock_db_client.collection.return_value.document.return_value.update.assert_called()
-        args, _ = self.mock_db_client.collection.return_value.document.return_value.update.call_args
-        self.assertFalse(args[0]['active'])
+        # Should now call delete instead of update
+        self.mock_db_client.collection.return_value.document.return_value.delete.assert_called()
+
+    def test_delete_mission(self):
+        # Mock mission resources release logic - complex to test thoroughly without mocking sub-calls,
+        # but we can verify delete is called on the document
+
+        # We need to mock _release_mission_resources or its internal calls if we want to isolate it,
+        # but here we mainly care that db.collection(...).document(...).delete() is called.
+
+        # Mock get for release resources
+        mock_doc = MagicMock()
+        mock_doc.exists = True
+        mock_doc.to_dict.return_value = {"vehicle_id": "v1"}
+        self.mock_db_client.collection.return_value.document.return_value.get.return_value = mock_doc
+
+        result = db.delete_mission("m1")
+
+        self.assertTrue(result)
+        # Verify delete was called on the mission document
+        # Note: Depending on how mocks are reused, we might need specific assert.
+        # Since _release_mission_resources does other calls, we just want to ensure delete() happened eventually.
+        self.mock_db_client.collection.return_value.document.return_value.delete.assert_called()
 
 if __name__ == '__main__':
     unittest.main()
