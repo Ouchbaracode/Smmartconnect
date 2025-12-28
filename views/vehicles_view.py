@@ -1,5 +1,5 @@
 import flet as ft
-from db import get_all_vehicles, db
+from db import get_all_vehicles, db, delete_vehicle
 
 def vehicles_view(page: ft.Page, create_app_bar, go_to, show_snackbar):
     """Car management page using real database data"""
@@ -137,6 +137,40 @@ def vehicles_view(page: ft.Page, create_app_bar, go_to, show_snackbar):
             except Exception as ex:
                 show_snackbar(f"Error: {str(ex)}", ft.Colors.RED)
 
+        def delete_car_action(e):
+            def confirm_delete(e):
+                try:
+                    success = delete_vehicle(car["id"])
+                    if success:
+                        show_snackbar("Vehicle deleted successfully", ft.Colors.GREEN)
+                        refresh_cars_and_update()
+                        confirm_dialog.open = False
+                        close_dialog(e)
+                    else:
+                        show_snackbar("Failed to delete vehicle (must be AVAILABLE)", ft.Colors.RED)
+                        confirm_dialog.open = False
+                        page.update()
+                except Exception as ex:
+                    show_snackbar(f"Error: {str(ex)}", ft.Colors.RED)
+                    confirm_dialog.open = False
+                    page.update()
+
+            def cancel_delete(e):
+                confirm_dialog.open = False
+                page.update()
+
+            confirm_dialog = ft.AlertDialog(
+                title=ft.Text("Confirm Delete"),
+                content=ft.Text(f"Are you sure you want to delete {car.get('model', 'this vehicle')}?"),
+                actions=[
+                    ft.TextButton("Cancel", on_click=cancel_delete),
+                    ft.TextButton("Delete", on_click=confirm_delete, style=ft.ButtonStyle(color=ft.Colors.RED)),
+                ],
+            )
+            page.open(confirm_dialog)
+            confirm_dialog.open = True
+            page.update()
+
         dialog = ft.AlertDialog(
             title=ft.Text(f"{car.get('model', 'Unknown')} Details", weight=ft.FontWeight.BOLD),
             content=ft.Container(
@@ -172,13 +206,20 @@ def vehicles_view(page: ft.Page, create_app_bar, go_to, show_snackbar):
             ),
             actions=[
                 ft.TextButton("Close", on_click=close_dialog),
-                # Removed Assign button per request
-                ft.ElevatedButton(
-                    "Maintenance",
-                    icon=ft.Icons.BUILD,
-                    on_click=schedule_maintenance,
-                    style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_50, color=ft.Colors.ORANGE)
-                )
+                ft.Row([
+                    ft.ElevatedButton(
+                        "Delete",
+                        icon=ft.Icons.DELETE,
+                        on_click=delete_car_action,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.RED_50, color=ft.Colors.RED)
+                    ),
+                    ft.ElevatedButton(
+                        "Maintenance",
+                        icon=ft.Icons.BUILD,
+                        on_click=schedule_maintenance,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_50, color=ft.Colors.ORANGE)
+                    )
+                ])
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
         )

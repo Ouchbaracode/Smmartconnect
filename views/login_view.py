@@ -1,8 +1,7 @@
 import flet as ft
-from db import login as db_login, login_with_google as db_login_google
+from db import login as db_login
 import time
 import os
-from google_auth_oauthlib.flow import InstalledAppFlow
 
 def login_view(page: ft.Page, on_login_success, show_snackbar):
     """Enhanced login with proper database authentication"""
@@ -66,73 +65,6 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
             login_button.content = ft.Text("Sign In", color=WHITE, weight=ft.FontWeight.BOLD, size=16)
             login_button.disabled = False
             show_snackbar(f"Login error: {str(ex)}", color=ft.Colors.RED)
-            page.update()
-
-    def on_google_login_click(e):
-        """Handle Google Login using InstalledAppFlow"""
-        nonlocal is_loading
-
-        is_loading = True
-        google_login_button.content = ft.Row([
-            ft.ProgressRing(width=20, height=20, stroke_width=2, color=GRAY_600),
-            ft.Text("Opening Browser...", color=GRAY_600, weight=ft.FontWeight.BOLD)
-        ], alignment=ft.MainAxisAlignment.CENTER, tight=True)
-        google_login_button.disabled = True
-        page.update()
-
-        try:
-            client_id = os.getenv("GOOGLE_CLIENT_ID")
-            client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-
-            if not client_id or not client_secret:
-                # Fallback simulation if no env vars (for testing)
-                time.sleep(1)
-                print("Missing Google Credentials, using simulation")
-                fake_id_token = "simulate_google_token_12345"
-                authenticated_user = db_login_google(fake_id_token)
-                if authenticated_user:
-                    on_login_success(authenticated_user)
-                else:
-                    raise Exception("Simulation failed")
-                return
-
-            # Construct client config manually to avoid writing a file
-            client_config = {
-                "installed": {
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                    "redirect_uris": ["https://accounts.google.com/o/oauth2/auth"]
-                }
-            }
-
-            # Create flow
-            flow = InstalledAppFlow.from_client_config(
-                client_config,
-                scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
-            )
-
-            # Run local server to get credentials
-            creds = flow.run_local_server(port=0)
-
-            # Get ID token
-            if creds and creds.id_token:
-                authenticated_user = db_login_google(creds.id_token)
-
-                if authenticated_user:
-                    on_login_success(authenticated_user)
-                else:
-                    raise Exception("Authentication failed after getting token")
-            else:
-                raise Exception("Failed to retrieve ID token")
-
-        except Exception as ex:
-            is_loading = False
-            google_login_button.content = google_button_content
-            google_login_button.disabled = False
-            show_snackbar(f"Google Login Error: {str(ex)}", color=ft.Colors.RED)
             page.update()
 
     def on_forgot_password(e):
@@ -248,37 +180,6 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
         on_click=on_login_click
     )
 
-    # Google Login Button
-    google_button_content = ft.Row([
-        ft.Image(src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg", width=24, height=24),
-        ft.Text("Sign in with Google", color=GRAY_600, weight=ft.FontWeight.BOLD, size=16)
-    ], alignment=ft.MainAxisAlignment.CENTER, tight=True)
-
-    google_login_button = ft.OutlinedButton(
-        content=google_button_content,
-        style=ft.ButtonStyle(
-            shape=ft.RoundedRectangleBorder(radius=12),
-            side=ft.BorderSide(1, GRAY_300),
-            padding=ft.padding.symmetric(vertical=15),
-            overlay_color=GRAY_300,
-        ),
-        height=55,
-        width=300,
-        on_click=on_google_login_click
-    )
-
-    social_divider = ft.Row([
-        ft.Container(
-            content=ft.Divider(color=GRAY_300, height=1),
-            expand=True
-        ),
-        ft.Text("or", color=GRAY_600, size=12),
-        ft.Container(
-            content=ft.Divider(color=GRAY_300, height=1),
-            expand=True
-        )
-    ], alignment=ft.MainAxisAlignment.CENTER)
-
     # Sign up section - only show for admin users
     signup_section = ft.Row([
         ft.Text("Need to add users? ", color=GRAY_600, size=14),
@@ -308,10 +209,6 @@ def login_view(page: ft.Page, on_login_success, show_snackbar):
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.Container(height=30),
                     login_button,
-                    ft.Container(height=25),
-                    social_divider,
-                    ft.Container(height=20),
-                    google_login_button, # Added Google Button here
                     ft.Container(height=20),
                     signup_section
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),

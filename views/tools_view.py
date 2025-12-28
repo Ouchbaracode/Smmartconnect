@@ -1,5 +1,5 @@
 import flet as ft
-from db import get_all_tools
+from db import get_all_tools, delete_tool
 
 def tools_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show_snackbar):
     """Create and return the complete tools management content using real data"""
@@ -163,6 +163,40 @@ def tools_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show_sna
             print(f"Scheduling maintenance for: {tool['name']}")
             close_dialog(e)
 
+        def delete_tool_action(e):
+            def confirm_delete(e):
+                try:
+                    success = delete_tool(tool["id"])
+                    if success:
+                        show_snackbar("Tool deleted successfully", ft.Colors.GREEN)
+                        refresh_tools_and_update()
+                        confirm_dialog.open = False
+                        close_dialog(e)
+                    else:
+                        show_snackbar("Failed to delete tool (ensure none are in use)", ft.Colors.RED)
+                        confirm_dialog.open = False
+                        page.update()
+                except Exception as ex:
+                    show_snackbar(f"Error: {str(ex)}", ft.Colors.RED)
+                    confirm_dialog.open = False
+                    page.update()
+
+            def cancel_delete(e):
+                confirm_dialog.open = False
+                page.update()
+
+            confirm_dialog = ft.AlertDialog(
+                title=ft.Text("Confirm Delete"),
+                content=ft.Text(f"Are you sure you want to delete {tool['name']}?"),
+                actions=[
+                    ft.TextButton("Cancel", on_click=cancel_delete),
+                    ft.TextButton("Delete", on_click=confirm_delete, style=ft.ButtonStyle(color=ft.Colors.RED)),
+                ],
+            )
+            page.open(confirm_dialog)
+            confirm_dialog.open = True
+            page.update()
+
         dialog = ft.AlertDialog(
             title=ft.Text(tool["name"], weight=ft.FontWeight.BOLD),
             content=ft.Container(
@@ -202,13 +236,20 @@ def tools_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show_sna
             ),
             actions=[
                 ft.TextButton("Close", on_click=close_dialog),
-                # Removed Assign button per request
-                ft.ElevatedButton(
-                    "Maintenance",
-                    icon=ft.Icons.BUILD,
-                    on_click=schedule_maintenance,
-                    style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_50, color=ft.Colors.ORANGE)
-                )
+                ft.Row([
+                    ft.ElevatedButton(
+                        "Delete",
+                        icon=ft.Icons.DELETE,
+                        on_click=delete_tool_action,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.RED_50, color=ft.Colors.RED)
+                    ),
+                    ft.ElevatedButton(
+                        "Maintenance",
+                        icon=ft.Icons.BUILD,
+                        on_click=schedule_maintenance,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_50, color=ft.Colors.ORANGE)
+                    )
+                ])
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
         )
