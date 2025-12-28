@@ -1,5 +1,5 @@
 import flet as ft
-from db import get_all_employees
+from db import get_all_employees, delete_employee
 
 def employees_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show_snackbar):
     """Create and return the complete employee management content using real data"""
@@ -43,6 +43,40 @@ def employees_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show
         def edit_employee(e):
             go_to(f"/edit_employee/{employee_data['id']}")
             # Here you could navigate to an employee edit form
+
+        def delete_employee_action(e):
+            def confirm_delete(e):
+                try:
+                    success = delete_employee(employee_data["id"])
+                    if success:
+                        show_snackbar("Employee deactivated successfully", ft.Colors.GREEN)
+                        refresh_employees_and_update()
+                        confirm_dialog.open = False
+                        page.update()
+                    else:
+                        show_snackbar("Failed to deactivate employee", ft.Colors.RED)
+                        confirm_dialog.open = False
+                        page.update()
+                except Exception as ex:
+                    show_snackbar(f"Error: {str(ex)}", ft.Colors.RED)
+                    confirm_dialog.open = False
+                    page.update()
+
+            def cancel_delete(e):
+                confirm_dialog.open = False
+                page.update()
+
+            confirm_dialog = ft.AlertDialog(
+                title=ft.Text("Confirm Deactivation"),
+                content=ft.Text(f"Are you sure you want to deactivate {employee_data['name']}?"),
+                actions=[
+                    ft.TextButton("Cancel", on_click=cancel_delete),
+                    ft.TextButton("Deactivate", on_click=confirm_delete, style=ft.ButtonStyle(color=ft.Colors.RED)),
+                ],
+            )
+            page.open(confirm_dialog)
+            confirm_dialog.open = True
+            page.update()
 
         return ft.Card(
             content=ft.Container(
@@ -133,6 +167,12 @@ def employees_view(page: ft.Page, go_to, create_app_bar, create_bottom_nav, show
                                 shape=ft.RoundedRectangleBorder(radius=8)
                             ),
                             on_click=edit_employee
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.DELETE,
+                            icon_color=ft.Colors.RED,
+                            tooltip="Deactivate Employee",
+                            on_click=delete_employee_action
                         )
                     ], alignment=ft.MainAxisAlignment.END)
                 ], spacing=8),

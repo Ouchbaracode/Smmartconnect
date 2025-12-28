@@ -10,9 +10,6 @@ import hashlib
 import uuid
 from typing import List, Dict, Optional, Any
 import json
-import requests
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
 
 # Initialize Firebase
 try:
@@ -142,118 +139,6 @@ class DatabaseManager:
             return None
         except Exception as e:
             print(f"Login error: {e}")
-            return None
-
-    def exchange_google_token_for_firebase(self, google_id_token: str) -> Optional[str]:
-        """
-        Exchange Google ID Token for Firebase ID Token using REST API.
-        Requires FIREBASE_API_KEY environment variable.
-        """
-        api_key = os.getenv("FIREBASEAPIKEY")
-        if not api_key:
-            print("FIREBASE_API_KEY not found in environment variables")
-            return None
-
-        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key={api_key}"
-
-        payload = {
-            "postBody": f"id_token={google_id_token}&providerId=google.com",
-            "requestUri": "https://accounts.google.com/o/oauth2/auth", # Placeholder, required parameter
-            "returnIdpCredential": True,
-            "returnSecureToken": True
-        }
-
-        try:
-            response = requests.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("idToken")
-        except requests.exceptions.RequestException as e:
-            print(f"Error exchanging token: {e}")
-            if hasattr(e, 'response') and e.response:
-                print(e.response.text)
-            return None
-
-    def login_with_google(self, google_id_token: str) -> Optional[Dict]:
-        """Login or register with Google using Firebase Auth flow"""
-        try:
-            if not self.db:
-                return None
-
-            # 1. Exchange Google Token for Firebase Token
-            # This ensures the user is authenticated "from Firebase"
-            firebase_token = self.exchange_google_token_for_firebase(google_id_token)
-
-            if not firebase_token:
-                # If exchange fails (e.g. no API key configured), fall back to verifying the Google Token directly
-                # strictly for app login (but this bypasses Firebase Auth user creation).
-                # However, since the user asked for "auth from firebase", we should rely on the exchange.
-                # But for robustness in this sandbox environment:
-                print("Falling back to direct Google Token verification due to missing API key or error.")
-                try:
-                    # Verify Google Token directly
-                    id_info = id_token.verify_oauth2_token(google_id_token, google_requests.Request())
-                    email = id_info['email']
-                    name = id_info.get('name')
-                    uid = id_info['sub'] # Google User ID
-                except ValueError as ve:
-                    print(f"Invalid Google Token: {ve}")
-                    return None
-            else:
-                # 2. Verify the Firebase Token
-                # This confirms the user exists in Firebase Auth
-                decoded_token = auth.verify_id_token(firebase_token)
-                uid = decoded_token['uid']
-                email = decoded_token.get('email')
-                name = decoded_token.get('name')
-
-            if not email:
-                return None
-
-            # 3. Check/Create User in Firestore
-            users_ref = self.db.collection(self.USERS_COLLECTION)
-
-            # Search by username (email)
-            query = users_ref.where('username', '==', email).limit(1)
-            results = list(query.stream())
-
-            if results:
-                # User exists
-                user_doc = results[0]
-                user_data = self.to_dict(user_doc)
-
-                # Update last login
-                self.db.collection(self.USERS_COLLECTION).document(user_doc.id).update({
-                    'last_login': datetime.now().isoformat()
-                })
-                return user_data
-            else:
-                # Create new user
-                new_user_data = {
-                    'username': email,
-                    'full_name': name or email.split('@')[0],
-                    'password': '', # No password for Google auth
-                    'role': 'Viewer', # Default restricted role
-                    'department_id': 1, # Default department (Logistics?)
-                    'active': True,
-                    'auth_provider': 'google',
-                    'google_uid': uid, # Store the UID (Google or Firebase)
-                    'email': email,
-                    'created_at': datetime.now().isoformat(),
-                    'updated_at': datetime.now().isoformat(),
-                    'last_login': datetime.now().isoformat()
-                }
-
-                doc_ref = self.db.collection(self.USERS_COLLECTION).add(new_user_data)
-
-                # Return the new user data with ID
-                new_user_data['id'] = doc_ref[1].id
-
-                self._invalidate_cache('employees') # Invalidate cache
-                return new_user_data
-
-        except Exception as e:
-            print(f"Google login error: {e}")
             return None
 
     def create_user(self, username: str, full_name: str, password: str, role: str, department_id: int, active: bool = True) -> bool:
@@ -876,6 +761,74 @@ class DatabaseManager:
             print(f"Get departments error: {e}")
             return []
     
+    def delete_vehicle(self, vehicle_id: str) -> bool:
+        """Delete vehicle if status is AVAILABLE"""
+        try:
+            if not self.db:
+                return False
+
+            doc_ref = self.db.collection(self.VEHICLES_COLLECTION).document(vehicle_id)
+            doc = doc_ref.get()
+
+            if not doc.exists:
+                return False
+
+            vehicle_data = doc.to_dict()
+            if vehicle_data.get('status') != 'AVAILABLE':
+                print(f"Vehicle {vehicle_id} is not AVAILABLE, cannot delete.")
+                return False
+
+            doc_ref.delete()
+            self._invalidate_cache('vehicles')
+            return True
+        except Exception as e:
+            print(f"Delete vehicle error: {e}")
+            return False
+
+    def delete_tool(self, tool_id: str) -> bool:
+        """Delete tool if not in use (available == total)"""
+        try:
+            if not self.db:
+                return False
+
+            doc_ref = self.db.collection(self.TOOLS_COLLECTION).document(tool_id)
+            doc = doc_ref.get()
+
+            if not doc.exists:
+                return False
+
+            tool_data = doc.to_dict()
+            total = tool_data.get('total_quantity', 0)
+            available = tool_data.get('available_quantity', 0)
+
+            if available < total:
+                print(f"Tool {tool_id} is in use, cannot delete.")
+                return False
+
+            doc_ref.delete()
+            self._invalidate_cache('tools')
+            return True
+        except Exception as e:
+            print(f"Delete tool error: {e}")
+            return False
+
+    def delete_employee(self, employee_id: str) -> bool:
+        """Soft delete employee by setting active to False"""
+        try:
+            if not self.db:
+                return False
+
+            self.db.collection(self.USERS_COLLECTION).document(employee_id).update({
+                'active': False,
+                'updated_at': datetime.now().isoformat()
+            })
+
+            self._invalidate_cache('employees')
+            return True
+        except Exception as e:
+            print(f"Delete employee error: {e}")
+            return False
+
     def initialize_default_data(self):
         """Initialize default departments and sample data"""
         try:
@@ -919,9 +872,6 @@ db.initialize_default_data()
 def login(username: str, password: str) -> Optional[Dict]:
     return db.login(username, password)
 
-def login_with_google(id_token: str) -> Optional[Dict]:
-    return db.login_with_google(id_token)
-
 def create_user(username: str, full_name: str, password: str, role: str, department_id: int, active: bool = True) -> bool:
     return db.create_user(username, full_name, password, role, department_id, active)
 
@@ -958,6 +908,15 @@ def get_all_missions() -> List[Dict]:
 
 def update_mission_status(mission_id: str, status: str, notes: str = None) -> bool:
     return db.update_mission_status(mission_id, status, notes)
+
+def delete_vehicle(vehicle_id: str) -> bool:
+    return db.delete_vehicle(vehicle_id)
+
+def delete_tool(tool_id: str) -> bool:
+    return db.delete_tool(tool_id)
+
+def delete_employee(employee_id: str) -> bool:
+    return db.delete_employee(employee_id)
 
 def create_vehicle(vehicle_data: Dict) -> bool:
     db.create_vehicle(vehicle_data) 

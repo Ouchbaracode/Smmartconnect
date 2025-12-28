@@ -1,6 +1,6 @@
 import flet as ft
 from datetime import datetime
-from db import get_all_missions_with_details, get_mission_stats, update_mission_status, add_mission_log
+from db import get_all_missions_with_details, get_mission_stats, update_mission_status, add_mission_log, delete_mission
 
 def missions_view(page: ft.Page, go_to, show_snackbar):
     """Mission management page using real database data"""
@@ -174,6 +174,43 @@ def missions_view(page: ft.Page, go_to, show_snackbar):
                 except Exception as ex:
                     show_snackbar(f"Error: {str(ex)}", RED)
             return update_status
+
+        def delete_mission_action(e):
+            def confirm_delete(e):
+                try:
+                    # delete_mission is a soft delete (sets status to CANCELLED)
+                    # if the user meant hard delete, we would need a new DB function.
+                    # Based on existing db.delete_mission, it sets status to CANCELLED.
+                    success = delete_mission(mission["id"])
+                    if success:
+                        show_snackbar("Mission cancelled/deleted successfully", GREEN)
+                        refresh_missions_and_update()
+                        confirm_dialog.open = False
+                        close_dialog(e)
+                    else:
+                        show_snackbar("Failed to delete mission", RED)
+                        confirm_dialog.open = False
+                        page.update()
+                except Exception as ex:
+                    show_snackbar(f"Error: {str(ex)}", RED)
+                    confirm_dialog.open = False
+                    page.update()
+
+            def cancel_delete(e):
+                confirm_dialog.open = False
+                page.update()
+
+            confirm_dialog = ft.AlertDialog(
+                title=ft.Text("Confirm Delete"),
+                content=ft.Text(f"Are you sure you want to delete mission '{mission.get('title', 'Untitled')}'?"),
+                actions=[
+                    ft.TextButton("Cancel", on_click=cancel_delete),
+                    ft.TextButton("Delete", on_click=confirm_delete, style=ft.ButtonStyle(color=RED)),
+                ],
+            )
+            page.open(confirm_dialog)
+            confirm_dialog.open = True
+            page.update()
 
         def add_note_action(e):
             def save_note(e):
@@ -537,7 +574,15 @@ def missions_view(page: ft.Page, go_to, show_snackbar):
             ),
             actions=[
                 ft.TextButton("Close", on_click=close_dialog),
-                *action_buttons
+                ft.Row([
+                     ft.IconButton(
+                        icon=ft.Icons.DELETE,
+                        icon_color=RED,
+                        tooltip="Delete Mission",
+                        on_click=delete_mission_action
+                    ),
+                    *action_buttons
+                ])
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
         )
