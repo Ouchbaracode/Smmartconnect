@@ -51,7 +51,7 @@ def dashboard_router(page: ft.Page):
             page.update()
 
         def exit_app(e):
-            page.window_close()
+            page.close()
 
         dialog = ft.AlertDialog(
             title=ft.Text("Exit App"),
