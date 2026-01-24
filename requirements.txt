@@ -1,5 +1,3 @@
 flet
 firebase_admin
-google-auth
-
 
