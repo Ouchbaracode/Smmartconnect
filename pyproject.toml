@@ -25,9 +25,7 @@ dependencies = [
     "flet",
     "firebase-admin",
 ]
-[tool.flet]
-splash.android = false
-splash.ios = false 
+
 [project.optional-dependencies]
 # Development tools (testing, linting)
 dev = [
