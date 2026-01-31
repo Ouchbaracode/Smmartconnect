@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smmartconnect"
+version = "1.0.0"
+description = "SmartConnect Manager - Telecom Manager"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+  {name = "OuchbaraCode", email = "mohamedouchbara@gmail.com"}
+]
+keywords = ["flet", "flutter", "python", "dashboard", "manager"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+]
+
+# Core dependencies from your requirements.txt
+dependencies = [
+    "flet",
+    "firebase-admin",
+]
+[tool.flet]
+splash.android = false
+splash.ios = false 
+[project.optional-dependencies]
+# Development tools (testing, linting)
+dev = [
+    "pytest",
+    "black",
+    "flake8"
+]
+
+[project.scripts]
+# Allows you to run the app by typing 'smmartconnect' in the terminal
+smmartconnect = "main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["views*", "assets*"]  # Ensures your views and assets are included
+namespaces = false
