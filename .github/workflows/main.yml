@@ -1,18 +1,12 @@
 name: All Builds (Linux, macOS, Windows, Android, IPA, APK, AAB, Web, Desktop)
 
 on:
-  # Runs on push to any of the below branches
   push:
     branches:
       - master
-      - main
-  # Runs on pull request events that target one of the below branches
   pull_request:
     branches:
       - master
-      - main
-
-  # Allows you to run this workflow manually from the Actions tab of the repository
   workflow_dispatch:
 
 env:
@@ -20,7 +14,7 @@ env:
   BUILD_NUMBER: 1
   BUILD_VERSION: 1.0.0
   PYTHON_VERSION: 3.12.2
-  FLUTTER_VERSION: 3.22.2
+  FLUTTER_VERSION: 3.38.7
 
 jobs:
   build-linux:
@@ -52,6 +46,11 @@ jobs:
         sudo apt-get install -y ninja-build libgtk-3-dev
         flutter doctor
 
+    - name: Verify Flutter
+      run: |
+        flutter --version
+        which flutter
+
     - name: Flet Build Linux
       run: |
         flutter config --no-analytics 
@@ -64,6 +63,7 @@ jobs:
         path: build/linux
         if-no-files-found: warn
         overwrite: false
+
   build-aab:
     runs-on: macos-latest
 
@@ -94,6 +94,11 @@ jobs:
 
     - name: Restore Service.json from secret
       run: echo "${{ secrets.SERVICE_JSON }}" | base64 --decode > Service.json
+
+    - name: Verify Flutter
+      run: |
+        flutter --version
+        which flutter
 
     - name: Flet Build AAB
       run: |
@@ -139,6 +144,11 @@ jobs:
     - name: Restore Service.json from secret
       run: echo "${{ secrets.SERVICE_JSON }}" | base64 --decode > Service.json
 
+    - name: Verify Flutter
+      run: |
+        flutter --version
+        which flutter
+
     - name: Flet Build APK
       run: |
         flutter config --no-analytics
@@ -179,6 +189,11 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '21'
+
+    - name: Verify Flutter
+      run: |
+        flutter --version
+        which flutter
 
     - name: Flet Build IPA
       run: |
